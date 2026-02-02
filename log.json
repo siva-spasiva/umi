@@ -1,0 +1,29 @@
+{
+  "day_index": 1,
+  "conversation": {
+    "participants": [
+      {"name": "FriendA", "time": "YYYY-MM-DDTHH:MM:SS"},
+      {"name": "NPC신도3", "time": "YYYY-MM-DDTHH:MM:SS"}
+    ],
+    "messages": [
+      {"speaker": "SYSTEM|PLAYER|Friend_A|NPC_x", "content": "string", "time": "YYYY-MM-DDTHH:MM:SS"}
+    ]
+  },
+  "items_acquired": [
+    {"item_name": "string", "time": "YYYY-MM-DDTHH:MM:SS"}
+  ],
+  "information_acquired": [
+    {"info": "string", "time": "YYYY-MM-DDTHH:MM:SS"}
+  ],
+  "troll_level_events": [
+    {"action": "string", "troll_level_change": 1, "time": "YYYY-MM-DDTHH:MM:SS"}
+  ],
+  "state_snapshot": {
+    "fish_level": 10,
+    "sanity": 80,
+    "trust_friendA": 90,
+    "troll_level": 0,
+    "location": "Basement_Cell_01",
+    "time_of_day": "18:00"
+  }
+}

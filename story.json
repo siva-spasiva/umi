@@ -1,0 +1,26 @@
+{
+  "day_index": None,
+  "diary": {"title": "", "text": "", "tone": ""},
+  "summary_bullets": ["", "", ""],
+  "key_conversations": [
+    {"with": "", "what_changed": "", "quote": None}
+  ],
+  "items": [
+    {"name": "", "how_used_or_implication": ""}
+  ],
+  "clues": [
+    {"info": "", "importance": "low|mid|high"}
+  ],
+  "troll_level_analysis": {"delta_total": 0, "top_causes": []},
+  "consistency_check": {"contradictions_found": [], "missing_info": []},
+  "ending": {
+    "status": "continue|ending_triggered",
+    "ending_type": "escape|assimilation|exposed|sacrifice|failure|twist|null",
+    "reason": "",
+    "required_next_step": ""
+  },
+  "flags_for_next_day": [
+    {"flag": "", "why": ""}
+  ],
+  "safety": {"hallucination_risk": "low|mid|high", "spoiler_blocked": False}
+}
