@@ -37,4 +37,28 @@ class ChatService:
         )
         return "updated" if result.matched_count else "inserted"
 
+    async def get_current_stats(self):
+        # 실제로는 유저 ID별로 가져와야 함 (우선 단일 데이터 가정)
+        stats = await self.db["stats"].find_one({"_id": "global_stats"})
+        return stats or {
+            "fishLevel": 10, "umiLevel": 10, "hp": 50, "trust": 10,
+            "friendly": 50, "faith": 50, "npcStats": {}
+        }
+
+    async def update_stats(self, updates: dict, npc_id: str = None):
+        if npc_id:
+            # 특정 NPC 스탯 업데이트 (Dot notation 활용)
+            update_query = {f"npcStats.{npc_id}.{k}": v for k, v in updates.items()}
+        else:
+            # 글로벌 스탯 업데이트
+            update_query = updates
+
+        await self.db["stats"].update_one(
+            {"_id": "global_stats"},
+            {"$set": update_query},
+            upsert=True
+        )
+        return await self.get_current_stats()
+
+
 chat_service = ChatService()

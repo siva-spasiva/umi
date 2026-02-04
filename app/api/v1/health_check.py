@@ -3,7 +3,11 @@ from app.services.health_service import health_service
 
 router = APIRouter()
 
-@router.get("/health")
+
+@router.get(
+    "/health",
+    summary="API health check"
+)
 async def health_check():
     # 1. DB 연결 상태 확인
     try:

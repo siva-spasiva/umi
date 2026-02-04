@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+from typing import Dict, Optional, Any, List
 
 
 class Participant(BaseModel):
@@ -49,3 +49,15 @@ class DayLog(BaseModel):
     information_acquired: List[InfoAcquired] = []
     troll_level_events: List[TrollEvent] = []
     state_snapshot: StateSnapshot
+
+class ChatRequest(BaseModel):
+    message: str
+    npcId: str
+    userId: Optional[str] = "user_dev_session"
+
+class ChatResponse(BaseModel):
+    response: str
+    thought: str
+    npcId: str
+    updatedStats: Dict[str, Any]
+    currentStats: Dict[str, Any]

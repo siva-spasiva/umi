@@ -1,13 +1,18 @@
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, status, Depends
 from app.schemas.chat import DayLog
 from app.schemas.story import StorySummary
 
 from app.services.chat_service import chat_service
-
+from app.core.security import get_current_user_id
 
 router = APIRouter()
 
-@router.post("/save-log")
+
+@router.post(
+    "/save-log",
+    summary="대화 로그 저장",
+    description="대화한 로그들 저장하는 API"
+)
 async def save_log(log: DayLog):
     try:
         log_id = await chat_service.save_chat_log(log)
@@ -15,7 +20,11 @@ async def save_log(log: DayLog):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"저장 중 오류 발생: {str(e)}")
 
-@router.post("/summary", status_code=status.HTTP_201_CREATED)
+
+@router.post("/summary", status_code=status.HTTP_201_CREATED,
+             summary="대화들 요약",
+             description="대화 요약 하는 API"
+             )
 async def create_story_summary(summary: StorySummary):
     """
     LLM이 생성한 하루치 스토리 요약 및 분석 결과를 저장합니다.
@@ -34,8 +43,12 @@ async def create_story_summary(summary: StorySummary):
             detail=f"스토리 요약 저장 중 오류 발생: {str(e)}"
         )
 
-@router.get("/summary/{day_index}", response_model=StorySummary)
-async def get_story_summary(day_index: int):
+
+@router.get("/summary/{day_index}", response_model=StorySummary,
+            summary="대화 요약 정보 가져오기",
+            description="대화 요약 정보 가져오기는 API"
+            )
+async def get_story_summary(day_index: int, user_id: str = Depends(get_current_user_id)):
     """특정 일차의 스토리 요약 정보를 조회합니다."""
     summary = await chat_service.db["story_summaries"].find_one({"day_index": day_index})
     if not summary:

@@ -1,0 +1,32 @@
+{
+  "believer_a": {
+    "friendly": 20,
+    "faith": 30,
+    "trust": 0
+  },
+  "believer_b": {
+    "friendly": 20,
+    "faith": 50,
+    "trust": 0
+  },
+  "believer_c": {
+    "friendly": 20,
+    "faith": 80,
+    "trust": 0
+  },
+  "friend": {
+    "friendly": 80,
+    "faith": 0,
+    "trust": 0
+  },
+  "reporter": {
+    "friendly": 30,
+    "faith": 0,
+    "trust": 0
+  },
+  "leader": {
+    "friendly": 10,
+    "faith": 90,
+    "trust": 0
+  }
+}
