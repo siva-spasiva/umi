@@ -54,7 +54,7 @@ umi-backend/
 
 ```bash
 git clone <repository-url>
-cd umi-backend
+cd umi
 ```
 
 ### 2. 가상환경 생성 및 활성화
@@ -90,6 +90,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 서버가 실행되면 다음 주소로 접속 가능:
+
 - API: `http://localhost:8000`
 - API 문서 (Swagger): `http://localhost:8000/docs`
 - API 문서 (ReDoc): `http://localhost:8000/redoc`
@@ -97,14 +98,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## 📡 API 엔드포인트
 
 ### 헬스 체크
+
 - `GET /api/v1/health` - 서버 상태 확인
 
 ### 대화 로그 관리
+
 - `POST /api/v1/save-log` - 대화 로그 저장
 - `POST /api/v1/summary` - 대화 요약 저장
 - `GET /api/v1/summary/{day_index}` - 특정 일자 요약 조회
 
 ### 스탯 관리
+
 - `GET /api/v1/stats` - 현재 스탯 조회
 - `POST /api/v1/stats` - 스탯 업데이트
 - `POST /api/v1/stats/NPC` - NPC 스탯 업데이트
@@ -113,6 +117,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ## 📊 데이터 모델
 
 ### DayLog (대화 로그)
+
 ```python
 {
   "day_index": 1,
@@ -127,6 +132,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 ### Stats (스탯)
+
 ```python
 {
   "fishLevel": 10,
@@ -182,10 +188,6 @@ docker run -p 8000:8000 --env-file .env umi-backend
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
 5. Open a Pull Request
-
-## 📄 라이선스
-
-이 프로젝트는 별도의 라이선스가 명시되어 있지 않습니다.
 
 ## 📧 문의
 
