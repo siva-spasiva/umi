@@ -11,7 +11,7 @@ router = APIRouter()
 @router.post(
     "/save-log",
     summary="대화 로그 저장",
-    description="대화한 로그들 저장하는 API"
+    description="유저와 NPC 간의 원본 대화 로그를 저장합니다. 일자별 대화 흐름 파악에 사용됩니다."
 )
 async def save_log(log: DayLog):
     try:
@@ -22,8 +22,8 @@ async def save_log(log: DayLog):
 
 
 @router.post("/summary", status_code=status.HTTP_201_CREATED,
-             summary="대화들 요약",
-             description="대화 요약 하는 API"
+             summary="스토리 요약 저장",
+             description="LLM이 분석한 하루치 스토리 요약, 획득 아이템, 주요 이벤트를 저장합니다. 동일한 날짜가 있으면 덮어씁니다."
              )
 async def create_story_summary(summary: StorySummary):
     """
@@ -45,8 +45,8 @@ async def create_story_summary(summary: StorySummary):
 
 
 @router.get("/summary/{day_index}", response_model=StorySummary,
-            summary="대화 요약 정보 가져오기",
-            description="대화 요약 정보 가져오기는 API"
+            summary="특정 일차 스토리 요약 조회",
+            description="지정한 날짜(day_index)의 스토리 요약 및 분석 결과를 조회합니다."
             )
 async def get_story_summary(day_index: int, user_id: str = Depends(get_current_user_id)):
     """특정 일차의 스토리 요약 정보를 조회합니다."""

@@ -4,28 +4,33 @@ from app.core.config import settings
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-SECRET_KEY = settings.JWT_SECRET_KEY  # .env에서 관리 권장
+SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = settings.JWT_ALGORITHM
 
 security_scheme = HTTPBearer()
 
 
 def create_access_token(new_id: str):
-    print(f"[DEBUG] 생성 시 키: {SECRET_KEY}")  # 터미널 확인용
     payload = {
         "sub": str(new_id),
-        "exp": datetime.now(timezone.utc) + timedelta(days=3000)
+        "exp": datetime.now(timezone.utc) + timedelta(days=300) # 액세스 토큰 만료 기간
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def create_refresh_token(new_id: str):
+    payload = {
+        "sub": str(new_id),
+        "exp": datetime.now(timezone.utc) + timedelta(days=30)
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def verify_token(token: str):
-    print(f"[DEBUG] 검증 시 키: {SECRET_KEY}")  # 터미널 확인용
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         return payload.get("sub")
     except Exception as e:
-        print(f"[DEBUG] 검증 실패 원인: {e}")
         return None
 
 

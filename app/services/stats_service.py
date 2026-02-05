@@ -5,7 +5,7 @@ from datetime import datetime
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
-from app.core.security import create_access_token
+from app.core.security import create_access_token, verify_token, create_refresh_token
 
 
 class StatsService:
@@ -17,16 +17,30 @@ class StatsService:
         self.collection_token = self.db["tokens"]
         self.collection_npc = self.db["npc"]
 
+    async def refresh_session_token(self, refresh_token: str):
+        """리프레시 토큰을 검증하고 새로운 액세스 토큰을 발급합니다."""
+        user_id = verify_token(refresh_token)
+        if not user_id:
+            return None
+
+        user_data = await self.collection_token.find_one({"userId": user_id})
+        if not user_data:
+            return None
+
+        new_access_token = create_access_token(user_id)
+
+        return {
+            "access_token": new_access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+
     async def get_current_stats(self, user_id: str):
-        # 실제로는 유저 ID별로 가져와야 함 (우선 단일 데이터 가정)
         stats = await self.db["stats"].find_one({"user_id": user_id})
         return stats
 
     async def get_current_NPC_stats(self, user_id: str, npc_id: str):
         stats = await self.db["npc"].find_one({"userId": user_id, "npcId": npc_id})
-
-        # if stats:
-            # stats["_id"] = str(stats["_id"])  # JSON 변환을 위해 ObjectId를 문자열로!
 
         return stats
 
@@ -52,9 +66,10 @@ class StatsService:
         return await self.get_current_NPC_stats(user_id, npc_id)
 
     async def static_stats(self):
-        # user_stats = await self.collection_token.find_one({"userId": user_id})
+        ''' 유저 스탯 생성 '''
         user_id = str(uuid.uuid4())
         token = create_access_token(user_id)
+        refresh_token = create_refresh_token(user_id)
 
         initial_stats = {
             "userId": user_id,
@@ -69,18 +84,18 @@ class StatsService:
         ''' NPC stats 생성 '''
         await self.insert_initial_npc_stats(user_id)
 
+        ''' 초기 인벤토리 생성 (001-099) '''
+        initial_items = {f"{i:03d}": (i <= 3) for i in range(1, 100)}
+        await self.db["inventories"].insert_one({
+            "user_id": user_id,
+            "items": initial_items,
+            "created_at": datetime.now()
+        })
+
         return {
-            "fishLevel": 0, "hp": 100, "friendly": 50, "token": token, "trust": 0
+            "fishLevel": 0, "hp": 100, "friendly": 50, "token": token, "refresh_token": refresh_token, "trust": 0
         }
-
-    # return {
-    #     "fishLevel": user_stats["fishLevel"],
-    #     "hp": user_stats["hp"],
-    #     "friendly": user_stats['friendly'],
-    #     "trust": user_stats['trust'],
-    #     "token": token
-    # }
-
+        
     async def insert_initial_npc_stats(self, user_id: str):
         file_path = os.path.join(os.path.dirname(__file__), "..", "data", "characters.json")
 
@@ -90,14 +105,13 @@ class StatsService:
                 npc_documents = []
                 for npc_name, stats in npc_data_map.items():
                     npc_documents.append({
-                        "userId": user_id,  # 소유자 식별
+                        "userId": user_id,
                         "npcId": npc_name,  # believer_a, friend 등
                         "friendly": stats.get("friendly", 0),
                         "faith": stats.get("faith", 0),
                         "created_at": datetime.now()
                     })
                 if npc_documents:
-                    # 여러 문서를 한 번에 저장
                     await self.collection_npc.insert_many(npc_documents)
         except FileNotFoundError:
             raise "Not find characters data"
