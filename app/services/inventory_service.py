@@ -1,11 +1,9 @@
-from motor.motor_asyncio import AsyncIOMotorClient
 from typing import Optional, Dict, Any
-from app.core.config import settings
+from app.services.base_service import BaseService
 
-class InventoryService:
+class InventoryService(BaseService):
     def __init__(self):
-        self.client = AsyncIOMotorClient(settings.MONGODB_URL)
-        self.db = self.client[settings.DATABASE_NAME]
+        super().__init__()
 
     async def get_user_inventory(self, user_id: str) -> Dict[str, Any]:
         inventory = await self.db["inventories"].find_one({"user_id": user_id})

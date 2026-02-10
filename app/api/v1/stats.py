@@ -36,7 +36,7 @@ async def static_stats():
 
 @router.post("/refresh", response_model=TokenResponse,
              summary="토큰 재발급",
-             description="만료된 Access Token을 대신하여 유효한 Refresh Token으로 새로운 Access Token을 발급받습니다.",
+             description="만료된 Access Token을 대신하여 **유효한(만료되지 않은)** Refresh Token으로 새로운 Access Token을 발급받습니다.",
              responses={
                  401: {"description": "유효하지 않거나 만료된 리프레시 토큰"}
              })

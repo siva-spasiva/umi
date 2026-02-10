@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from app.schemas.chat import DayLog
+from app.schemas.chat import DayLog, ChatRequest, ChatResponse
 from app.schemas.story import StorySummary
 
 from app.services.chat_service import chat_service
@@ -7,6 +7,17 @@ from app.core.security import get_current_user_id
 
 router = APIRouter()
 
+@router.post("/chat", summary="NPC와 대화 (가드레일 적용)")
+async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
+    """
+    GA 에이전트가 입력과 출력을 검증하는 채팅 API입니다.
+    """
+    result = await chat_service.process_chat_flow(user_id, request.npcId, request.message)
+    
+    if result.get("status") == "blocked_by_guardrail":
+        return {"response": result["response"], "blocked": True}
+        
+    return result
 
 @router.post(
     "/save-log",

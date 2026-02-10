@@ -1,14 +1,59 @@
-import re
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.core.config import settings
+from app.services.base_service import BaseService
 from app.schemas.chat import DayLog
 from app.schemas.story import StorySummary
+from app.agents.ga1_agent import ga1_agent
+from app.agents.ga2_context import ga2_context
+from app.agents.llm_engine import llm_engine
+from app.agents.guardrail import ga_agent
+from langsmith import traceable
 
-class ChatService:
+class ChatService(BaseService):
     def __init__(self):
-        self.client = AsyncIOMotorClient(settings.MONGODB_URL)
-        self.db = self.client[settings.DATABASE_NAME]
+        super().__init__()
         self.collection = self.db["chat_logs"]
+
+    @traceable(run_type="chain", name="Chat_Flow_Pipeline")
+    async def process_chat_flow(self, user_id: str, npc_id: str, message: str):
+        """
+        GA1 -> GA2 -> LLM -> Output Guardrail 파이프라인
+        """
+        # 1. GA1: 입력 안전성 검증
+        is_safe, safety_msg = await ga1_agent.check_safety(message)
+        if not is_safe:
+            return {"response": safety_msg, "status": "blocked_by_ga1"}
+
+        # # 2. GA2: 문맥 및 세계관 검증
+        # TODO : 아직 GA2모델이 개발되지 않아서 사용
+        # history = await self._get_recent_history(user_id, npc_id, limit=5)
+        # is_context_ok, context_msg = await ga2_context.check_context(message, history)
+        # if not is_context_ok:
+        #     return {"response": context_msg, "status": "blocked_by_ga2"}
+
+        # 3. LLM Generation
+        # raw_response = await llm_engine.ask(npc_id, message, history)
+        raw_response = await llm_engine.ask(npc_id, message)
+
+        # 4. Output Guardrail (페르소나 체크 등)
+        is_output_safe, final_response = await ga_agent.validate_output(raw_response)
+        
+        return {
+            "response": final_response,
+            "npcId": npc_id,
+            "status": "success" if is_output_safe else "sanitized"
+        }
+
+    async def _get_recent_history(self, user_id: str, npc_id: str, limit: int = 5):
+        """DB에서 해당 유저와 NPC의 최근 대화 내역을 가져옵니다."""
+        cursor = self.collection.find(
+            {"conversation.participants.name": {"$in": [user_id, npc_id]}}
+        ).sort("_id", -1).limit(limit)
+        
+        logs = await cursor.to_list(length=limit)
+        history = []
+        for log in reversed(logs):
+            for msg in log.get("conversation", {}).get("messages", []):
+                history.append({"speaker": msg["speaker"], "content": msg["content"]})
+        return history
 
     async def save_chat_log(self, log_data: DayLog):
         """복잡한 게임 로그 데이터를 저장"""
@@ -36,29 +81,5 @@ class ChatService:
             upsert=True
         )
         return "updated" if result.matched_count else "inserted"
-
-    async def get_current_stats(self):
-        # 실제로는 유저 ID별로 가져와야 함 (우선 단일 데이터 가정)
-        stats = await self.db["stats"].find_one({"_id": "global_stats"})
-        return stats or {
-            "fishLevel": 10, "umiLevel": 10, "hp": 50, "trust": 10,
-            "friendly": 50, "faith": 50, "npcStats": {}
-        }
-
-    async def update_stats(self, updates: dict, npc_id: str = None):
-        if npc_id:
-            # 특정 NPC 스탯 업데이트 (Dot notation 활용)
-            update_query = {f"npcStats.{npc_id}.{k}": v for k, v in updates.items()}
-        else:
-            # 글로벌 스탯 업데이트
-            update_query = updates
-
-        await self.db["stats"].update_one(
-            {"_id": "global_stats"},
-            {"$set": update_query},
-            upsert=True
-        )
-        return await self.get_current_stats()
-
 
 chat_service = ChatService()

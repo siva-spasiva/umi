@@ -3,17 +3,15 @@ import json
 import os
 from datetime import datetime
 
-from motor.motor_asyncio import AsyncIOMotorClient
-from app.core.config import settings
+from app.services.base_service import BaseService
 from app.core.security import create_access_token, verify_token, create_refresh_token
 
 
-class StatsService:
+class StatsService(BaseService):
     characters = ["believer_a", "believer_b", "believer_c", "friend", "reporter", "leader"]
 
     def __init__(self):
-        self.client = AsyncIOMotorClient(settings.MONGODB_URL)
-        self.db = self.client[settings.DATABASE_NAME]
+        super().__init__()
         self.collection_token = self.db["tokens"]
         self.collection_npc = self.db["npc"]
 
@@ -23,7 +21,7 @@ class StatsService:
         if not user_id:
             return None
 
-        user_data = await self.collection_token.find_one({"userId": user_id})
+        user_data = await self.collection_token.find_one({"user_id": user_id})
         if not user_data:
             return None
 
@@ -36,20 +34,20 @@ class StatsService:
         }
 
     async def get_current_stats(self, user_id: str):
-        stats = await self.db["stats"].find_one({"user_id": user_id})
+        stats = await self.collection_token.find_one({"user_id": user_id})
         return stats
 
     async def get_current_NPC_stats(self, user_id: str, npc_id: str):
-        stats = await self.db["npc"].find_one({"userId": user_id, "npcId": npc_id})
+        stats = await self.collection_npc.find_one({"user_id": user_id, "npcId": npc_id})
 
         return stats
 
     async def update_stats(self, updates: dict, user_id: str):
-        filter_query = {"userId": user_id}
+        filter_query = {"user_id": user_id}
 
         update_query = {"$set": updates}
 
-        await self.db["npc"].update_one(
+        await self.collection_token.update_one(
             filter_query,
             update_query,
             upsert=True  # 데이터가 없으면 새로 생성
@@ -58,10 +56,10 @@ class StatsService:
         return await self.get_current_stats(user_id)
 
     async def update_NPC_stats(self, updates: dict, npc_id: str, user_id: str):
-        filter_query = {"userId": user_id, "npcId": npc_id}
+        filter_query = {"user_id": user_id, "npcId": npc_id}
         update_query = {"$set": updates}
 
-        await self.db["npc"].update_one(filter_query, update_query, upsert=True)
+        await self.collection_npc.update_one(filter_query, update_query, upsert=True)
 
         return await self.get_current_NPC_stats(user_id, npc_id)
 
@@ -72,7 +70,7 @@ class StatsService:
         refresh_token = create_refresh_token(user_id)
 
         initial_stats = {
-            "userId": user_id,
+            "user_id": user_id,
             "fishLevel": 0,
             "hp": 100,
             "friendly": 50,
@@ -105,7 +103,7 @@ class StatsService:
                 npc_documents = []
                 for npc_name, stats in npc_data_map.items():
                     npc_documents.append({
-                        "userId": user_id,
+                        "user_id": user_id,
                         "npcId": npc_name,  # believer_a, friend 등
                         "friendly": stats.get("friendly", 0),
                         "faith": stats.get("faith", 0),
@@ -114,7 +112,7 @@ class StatsService:
                 if npc_documents:
                     await self.collection_npc.insert_many(npc_documents)
         except FileNotFoundError:
-            raise "Not find characters data"
+            raise FileNotFoundError(f"Character data file not found at: {file_path}")
 
 
 stats_service = StatsService()

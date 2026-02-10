@@ -4,3 +4,15 @@ motor
 pymongo
 pydantic-settings
 python-dotenv
+torch
+transformers
+accelerate
+psutil
+pynvml
+bitsandbytes
+pytest
+httpx
+peft
+langsmith
+langchain
+langchain-core

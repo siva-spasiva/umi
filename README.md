@@ -6,9 +6,13 @@ Umi는 게임 캐릭터와의 대화, 스탯 관리, 스토리 진행을 추적�
 
 - **대화 로그 관리**: 게임 내 NPC와의 대화 내용을 일자별로 저장
 - **스토리 요약**: LLM 기반 대화 요약 및 분석 결과 저장
+- **가드레일 시스템**: 유저 입력의 안전성(GA1) 및 세계관 문맥 적합성(GA2) 검증
 - **스탯 시스템**: 캐릭터 및 NPC의 스탯(HP, 친밀도, 신뢰도 등) 관리
+- **인벤토리 시스템**: 아이템 획득, 사용 및 대화 녹음 파일 관리
 - **JWT 인증**: 보안이 적용된 API 엔드포인트
 - **헬스 체크**: 서버 상태 모니터링
+- **리소스 모니터링**: CPU, RAM, GPU(VRAM) 상태 실시간 대시보드 제공
+- **데이터 생성 도구**: 페르소나 학습을 위한 SFT 데이터 대량 생성 스크립트 제공
 
 ## 📁 프로젝트 구조
 
@@ -79,6 +83,11 @@ MONGODB_URL=mongodb://localhost:27017
 DATABASE_NAME=umi_game
 JWT_SECRET_KEY=your-secret-key-here
 JWT_ALGORITHM=HS256
+
+# AI 설정 (선택 사항)
+USE_MOCK_AI=false           # True: AI 모델 로드 없이 빠른 개발 (Mock 모드)
+FORCE_VERIFY_MODEL=false    # True: CPU 환경에서도 강제로 모델 로드 테스트 수행
+GA1_MODEL_PATH=beomi/kcbert-base # GA1 모델 ID 또는 경로
 ```
 
 ## 🚀 실행 방법
