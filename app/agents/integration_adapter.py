@@ -1,22 +1,19 @@
 """
-기존 코드(llm_engine.py, npc_agent.py)와의 통합 어댑터
+LangChain 기반 통합 어댑터
 
-사용법:
-1. 기존 코드를 이 파일로 교체
-2. NPC_model/best_model.pt 경로 확인
-3. 환경 변수 설정 (HF_TOKEN 등)
-
-환경별 자동 전환:
-- Local: Ollama 자동 사용 (빠름)
-- AWS: HuggingFace 자동 사용 (안정적)
+- IntentAnalyzer: 기존 의도 분석 모델 로드
+- LLMFactory: LangChain과 호환되는 LLM(로컬, Ollama) 로드
+- 이 모듈의 인스턴스는 llm_engine.py에서 사용되어 전체 파이프라인을 구성합니다.
 """
 
 import asyncio
 import os
 from typing import List, Dict, Optional
 from npc_dialogue_engine import IntentAnalyzer, NPCState
-from npc_pipeline import NPCDialoguePipeline, CHUNG_GALCHI_PERSONAS
-from app.agents.smart_adapter import SmartDialogueGenerator, get_smart_generator_config
+from npc_pipeline import NPCDialoguePipeline
+
+# LangChain LLM 로더
+from app.core.llm_factory import LLMFactory
 
 
 # ============================================================
@@ -28,13 +25,12 @@ class NpcAgent:
     기존 npc_agent.py와 호환되는 인터페이스
     
     변경 사항:
-    - generate() 메서드: 이제 실제 대화 생성 지원
-    - predict() 메서드: 의도 분석만 수행
-    - 환경별 자동 전환: Local(Ollama) / AWS(HuggingFace)
+    - 의도 분석기(analyzer)와 LangChain LLM(llm)을 로드하여 속성으로 가집니다.
+    - 실제 대화 생성 로직은 NPCDialoguePipeline으로 이전되었습니다.
     """
     
     def __init__(self):
-        print("[NpcAgent] Initializing with smart environment detection...")
+        print("[NpcAgent] Initializing with LangChain integration...")
         
         # 경로 설정
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -54,21 +50,17 @@ class NpcAgent:
             tag_threshold=0.35
         )
         
-        # 대화 생성기 초기화 (환경별 자동 전환)
+        # LangChain LLM 로드
+        self.llm = None
+        self.generation_enabled = False
         try:
-            config = get_smart_generator_config()
-            self.generator = SmartDialogueGenerator(**config)
+            # LLMFactory가 .env 설정에 따라 적절한 LLM을 로드합니다.
+            self.llm = LLMFactory.create_llm(model_key="npc")
             self.generation_enabled = True
-            
-            # 백엔드 정보 출력
-            info = self.generator.get_backend_info()
-            print(f"✅ [NpcAgent] Backend: {info['backend']} ({info['model']})")
-            
+            print("✅ [NpcAgent] LangChain LLM loaded successfully.")
         except Exception as e:
-            print(f"⚠️ [NpcAgent] Generator initialization failed: {e}")
+            print(f"⚠️ [NpcAgent] LLM loading failed: {e}")
             print(f"   Only analysis mode available.")
-            self.generator = None
-            self.generation_enabled = False
         
         print(f"✅ [NpcAgent] Ready (generation: {self.generation_enabled})")
     
@@ -83,52 +75,6 @@ class NpcAgent:
             분석 결과 딕셔너리
         """
         return self.analyzer.analyze(text)
-    
-    def generate(
-        self,
-        prompt: str,
-        max_new_tokens: int = 256,
-        npc_id: str = "청갈치"
-    ) -> str:
-        """
-        대화 생성 (기존 인터페이스 호환)
-        
-        Args:
-            prompt: 프롬프트 (간단한 버전)
-            max_new_tokens: 최대 토큰 수
-            npc_id: NPC 이름
-            
-        Returns:
-            생성된 대화
-        """
-        if not self.generation_enabled:
-            return "⚠️ 대화 생성 기능이 비활성화되어 있습니다. (분석 모드만 지원)"
-        
-        # 간단한 프롬프트를 파이프라인 형식으로 변환
-        # 기존: "당신은 '{npc_id}'입니다. ... User: {message}"
-        # → 분석 없이 직접 생성
-        
-        # 기본 페르소나 사용
-        persona = CHUNG_GALCHI_PERSONAS.get("normal", "")
-        
-        system_prompt = f"""{persona}
-
-[OUTPUT 규칙]
-- {npc_id}의 대사만 출력
-- 선택지/해설/마크다운 금지
-"""
-        
-        try:
-            response = self.generator.generate(
-                system_prompt=system_prompt,
-                user_message=prompt,
-                max_new_tokens=max_new_tokens,
-                do_sample=False
-            )
-            return response
-        except Exception as e:
-            print(f"[ERROR] generate() failed: {e}")
-            return "시스템: 대화 생성 중 오류가 발생했습니다."
 
 
 # 싱글톤 인스턴스
@@ -165,7 +111,7 @@ class LLMEngine:
             # 새 파이프라인 생성
             self.pipelines[npc_id] = NPCDialoguePipeline(
                 analyzer=self.agent.analyzer,
-                generator=self.agent.generator,
+                llm=self.agent.llm,
                 npc_id=npc_id,
                 personas=CHUNG_GALCHI_PERSONAS,  # NPC별로 다른 페르소나 사용 가능
                 initial_state=NPCState(friendly=50, faith=50)

@@ -5,6 +5,10 @@ from app.agents.npc_pipeline import NPCDialoguePipeline, CHUNG_GALCHI_PERSONAS
 from app.agents.npc_dialogue_engine import NPCState
 from langsmith import traceable
 
+# 메모리 및 스토리 에이전트 추가
+from app.core.memory import memory_manager
+from app.agents.story_agent import story_agent
+
 class LLMEngine:
     """실제 LLM(OpenAI, Gemini, Claude 등) 호출 전담 모듈"""
     def __init__(self):
@@ -12,6 +16,9 @@ class LLMEngine:
         
         # 파이프라인 생성 (NPC별)
         self.pipelines: Dict[str, NPCDialoguePipeline] = {}
+        
+        # Vector DB Retriever 가져오기 (RAG용)
+        self.retriever = memory_manager.get_retriever(k=2)
         
         print("[LLMEngine] Initialized with pipeline architecture")
     
@@ -24,7 +31,8 @@ class LLMEngine:
             # 새 파이프라인 생성
             self.pipelines[npc_id] = NPCDialoguePipeline(
                 analyzer=self.agent.analyzer,
-                generator=self.agent.generator,
+                llm=self.agent.llm, 
+                retriever=self.retriever, # RAG 검색기 주입
                 npc_id=npc_id,
                 personas=CHUNG_GALCHI_PERSONAS,  # NPC별로 다른 페르소나 사용 가능
                 initial_state=NPCState(friendly=50, faith=50)
@@ -77,5 +85,23 @@ class LLMEngine:
         if npc_id in self.pipelines:
             self.pipelines[npc_id].state = NPCState(friendly=50, faith=50)
             print(f"[LLMEngine] {npc_id} 상태 초기화")
+            
+    async def save_long_term_memory(self, npc_id: str, history: List[Dict]):
+        """
+        [장기 기억 형성 프로세스]
+        1. 대화 로그(history)를 StoryAgent에게 전달하여 요약(일기) 생성
+        2. 요약된 내용을 Vector DB에 저장
+        """
+        print(f"[Memory] {npc_id}의 기억을 생성합니다...")
+        
+        # 1. 요약 생성 (StoryAgent 활용)
+        # history는 [{"role": "user", "content": "..."}, ...] 형태의 리스트를 문자열로 변환
+        summary = story_agent.generate_diary(str(history), fish_level=0)
+        
+        # 2. Vector DB 저장
+        memory_manager.add_memory(
+            text=summary,
+            metadata={"npc_id": npc_id, "type": "diary"}
+        )
 
 llm_engine = LLMEngine()

@@ -31,6 +31,19 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "ignore"  # 정의되지 않은 변수가 .env에 있어도 에러 무시
 
+    def get_model_path(self, model_key: str) -> Optional[str]:
+        """모델 키(npc, story 등)에 따른 경로 반환"""
+        key = model_key.lower()
+        if key == "npc":
+            return self.NPC_MODEL_PATH
+        elif key == "story":
+            return self.STORY_MODEL_PATH
+        elif key == "ga1":
+            return self.GA1_MODEL_PATH
+        elif key == "ga2":
+            return self.GA2_MODEL_PATH
+        return None
+
 # .env 파일을 시스템 환경 변수로 즉시 로드 (LangSmith 등 외부 라이브러리 인식용)
 load_dotenv()
 
@@ -38,7 +51,7 @@ settings = Settings()
 
 # LangSmith 등 외부 라이브러리가 os.environ을 직접 참조하는 경우를 위해 동기화
 if settings.LANGCHAIN_TRACING_V2:
-    os.environ["LANGCHAIN_TRACING_V2"] = settings.LANGCHAIN_TRACING_V2
+    os.environ["LANGCHAIN_TRACING_V2"] = str(settings.LANGCHAIN_TRACING_V2)
 if settings.LANGCHAIN_API_KEY:
     os.environ["LANGCHAIN_API_KEY"] = settings.LANGCHAIN_API_KEY
 if settings.LANGCHAIN_PROJECT:

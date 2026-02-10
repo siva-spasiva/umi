@@ -1,19 +1,24 @@
 """
 NPC 대화 통합 파이프라인
-- IntentAnalyzer + DialogueGenerator 결합
+- IntentAnalyzer + LangChain LLM 결합
 - 페르소나별 시스템 프롬프트 관리
 - RAG (선택사항)
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Type
 from app.agents.npc_dialogue_engine import (
     IntentAnalyzer, 
-    DialogueGenerator,
     NPCState,
     get_relationship_bucket,
     sanitize_npc_response,
     format_control_signal
 )
+
+# LangChain 관련 import
+from langchain_core.runnables import Runnable
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.retrievers import BaseRetriever
 
 
 # ============================================================
@@ -101,13 +106,15 @@ class NPCDialoguePipeline:
     def __init__(
         self,
         analyzer: IntentAnalyzer,
-        generator: DialogueGenerator,
+        llm: Runnable, # DialogueGenerator 대신 LangChain Runnable(LLM)을 받음
+        retriever: Optional[BaseRetriever] = None, # RAG용 검색기 추가
         npc_id: str = "청갈치",
         personas: Dict[str, str] = None,
         initial_state: NPCState = None
     ):
         self.analyzer = analyzer
-        self.generator = generator
+        self.llm = llm
+        self.retriever = retriever
         self.npc_id = npc_id
         self.personas = personas or CHUNG_GALCHI_PERSONAS
         self.state = initial_state or NPCState()
@@ -118,7 +125,8 @@ class NPCDialoguePipeline:
     def _build_system_prompt(
         self,
         user_message: str,
-        analysis: Dict[str, Any]
+        analysis: Dict[str, Any],
+        context: str = ""
     ) -> str:
         """
         시스템 프롬프트 구성
@@ -126,6 +134,7 @@ class NPCDialoguePipeline:
         구성 요소:
         1. 페르소나 (관계도에 따라 선택)
         2. 컨트롤 시그널 (분석 결과)
+        3. RAG 컨텍스트 (기억/지식)
         3. 출력 제약
         """
         # 관계도에 따른 페르소나 선택
@@ -139,10 +148,16 @@ class NPCDialoguePipeline:
             analysis["faith_delta"]
         )
         
+        # 컨텍스트 블록 구성 (정보가 있을 때만)
+        context_block = ""
+        if context:
+            context_block = f"\n[관련 기억/지식]\n{context}\n"
+
         # 시스템 프롬프트 조합
         system_prompt = f"""{persona}
 
 {control_signal}
+{context_block}
 
 [현재 관계 상태]
 - 호감도: {self.state.friendly}/100
@@ -187,22 +202,34 @@ class NPCDialoguePipeline:
             analysis["faith_delta"]
         )
         
-        # 3. 시스템 프롬프트 생성
-        system_prompt = self._build_system_prompt(user_message, analysis)
+        # 3. RAG: 관련 정보 검색 (Retriever가 설정된 경우)
+        context_text = ""
+        if self.retriever:
+            try:
+                docs = self.retriever.invoke(user_message)
+                context_text = "\n".join([doc.page_content for doc in docs])
+            except Exception as e:
+                print(f"⚠️ [RAG] 검색 실패: {e}")
+
+        # 4. 시스템 프롬프트 생성 (컨텍스트 포함)
+        system_prompt = self._build_system_prompt(user_message, analysis, context=context_text)
         
-        # 4. 대화 생성
-        user_prompt = f"플레이어: {user_message}\n\n{self.npc_id}로 답해."
-        raw_response = self.generator.generate(
-            system_prompt=system_prompt,
-            user_message=user_prompt,
-            max_new_tokens=max_new_tokens,
-            do_sample=do_sample
-        )
+        # 5. 대화 생성
+        prompt_template = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("human", "{user_input}")
+        ])
+
+        # 파이프라인 내에서 동적으로 체인 구성 및 실행
+        chain = prompt_template | self.llm | StrOutputParser()
+
+        # LangSmith에서 추적될 때, 이 invoke 호출이 기록됩니다.
+        raw_response = chain.invoke({"user_input": user_message})
         
-        # 5. 후처리
+        # 6. 후처리
         npc_response = sanitize_npc_response(raw_response)
         
-        # 6. 결과 구성
+        # 7. 결과 구성
         result = {
             "npc_response": npc_response,
             "state": self.state.to_dict(),
@@ -219,6 +246,7 @@ class NPCDialoguePipeline:
             result["debug"] = {
                 "raw_response": raw_response,
                 "system_prompt": system_prompt,
+                "rag_context": context_text, # 디버그 시 검색된 내용 확인 가능
                 "tag_probs": analysis["tag_probs"]
             }
         
