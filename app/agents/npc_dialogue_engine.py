@@ -390,14 +390,14 @@ def format_control_signal(
 REASON_TAGS: {tag_str}
 PREDICTED_DELTA: friendly={friendly_delta:+d}, faith={faith_delta:+d}
 
-행동 가이드:
-- WITHDRAW_TRUST 감지: 경계심 강화, 거리두기, 반문 증가
-- BUILD_TRUST 감지: 협력 가능성 열기, 정보 공유 고려
-- DEFLECT/GASLIGHT: 직접 답변 회피, 돌려 말하기
-- TEST_BOUNDARY: 상대방 의도 파악 시도
-- PROTECT_SECRET/PROTECT_DOCTRINE: 핵심 정보 숨기고 힌트만 제공
-- INCREASE_SUSPICION: 의심스러운 질문에 경계
-- REDUCE_SUSPICION: 신뢰 구축 시도 감지
+ACTION_GUIDE:
+- WITHDRAW_TRUST detected: Strengthen vigilance, distance yourself, question back more.
+- BUILD_TRUST detected: Open up to cooperation, consider sharing information.
+- DEFLECT/GASLIGHT: Avoid direct answers, speak evasively or metaphorically.
+- TEST_BOUNDARY: Try to determine the other's hidden intent.
+- PROTECT_SECRET/PROTECT_DOCTRINE: Hide core truth, give only vague hints.
+- INCREASE_SUSPICION: Be wary of suspicious questions.
+- REDUCE_SUSPICION: Detect attempts to build rapport.
 """
     return signal.strip()
 

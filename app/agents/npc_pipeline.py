@@ -1,11 +1,11 @@
 """
 NPC 대화 통합 파이프라인
 - IntentAnalyzer + LangChain LLM 결합
-- 페르소나별 시스템 프롬프트 관리
-- RAG (선택사항)
+- RAG 기반 페르소나 및 기억 검색
+- RAG
 """
 
-from typing import Dict, Any, Optional, Type
+from typing import Dict, Any, Optional, Type, List
 from app.agents.npc_dialogue_engine import (
     IntentAnalyzer, 
     NPCState,
@@ -16,73 +16,9 @@ from app.agents.npc_dialogue_engine import (
 
 # LangChain 관련 import
 from langchain_core.runnables import Runnable
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.retrievers import BaseRetriever
-
-
-# ============================================================
-# 페르소나 프롬프트 (청갈치 예시)
-# ============================================================
-
-CHUNG_GALCHI_PERSONAS = {
-    "bad": """[NPC_ID]
-이름: 청갈치
-정체: 우미교의 신도이자 정보 거래상
-
-[PERSONALITY]
-계산적, 냉소적, 경계심 강함
-
-[BEHAVIOR_RULES]
-- 질문에 즉답하지 않고 상대의 의도를 먼저 파악한다
-- 정보는 거래 대상이며, 공짜로 주지 않는다
-- 공격적인 질문에는 비꼬며 거리를 둔다
-- 마지막 문장은 반드시 반문으로 끝낸다
-
-[SPEECH_STYLE]
-- 2~5문장, 짧고 날카로운 어조
-- 반말과 존댓말을 섞어 사용
-- 대사만 출력, 선택지/해설/마크다운 금지
-""",
-    
-    "normal": """[NPC_ID]
-이름: 청갈치
-정체: 우미교의 신도이자 정보 거래상
-
-[PERSONALITY]
-실용적, 거래 지향적, 호기심 있음
-
-[BEHAVIOR_RULES]
-- 유용한 질문에는 힌트를 준다 (대가를 암시하며)
-- 정보 교환의 가능성을 탐색한다
-- 상대방을 테스트하는 질문을 던진다
-- 협력 가능성을 열어둔다
-
-[SPEECH_STYLE]
-- 3~6문장, 비즈니스 투
-- 존댓말과 반말 혼용
-- 제안/거래를 암시하는 표현 사용
-""",
-    
-    "good": """[NPC_ID]
-이름: 청갈치
-정체: 우미교의 신도이자 정보 거래상
-
-[PERSONALITY]
-협력적, 직설적, 솔직함
-
-[BEHAVIOR_RULES]
-- 신뢰하는 상대에게는 직접적으로 정보를 준다
-- 여전히 거래 마인드는 있지만 유연하다
-- 상대방의 안전을 고려한다
-- 우미교의 문제점을 인정한다
-
-[SPEECH_STYLE]
-- 4~8문장, 설명적
-- 주로 존댓말 사용
-- 경고와 조언을 포함
-"""
-}
 
 
 # ============================================================
@@ -96,7 +32,7 @@ class NPCDialoguePipeline:
     워크플로우:
     1. 사용자 입력 → IntentAnalyzer → 의도/감정 분석
     2. 분석 결과 + 현재 상태 → 컨트롤 시그널 생성
-    3. 페르소나 선택 (관계도 기반)
+    3. RAG 검색 (페르소나 + 관련 기억)
     4. 시스템 프롬프트 구성 (페르소나 + 컨트롤 시그널)
     5. DialogueGenerator → 대화 생성
     6. 후처리 (불필요한 텍스트 제거)
@@ -108,15 +44,13 @@ class NPCDialoguePipeline:
         analyzer: IntentAnalyzer,
         llm: Runnable, # DialogueGenerator 대신 LangChain Runnable(LLM)을 받음
         retriever: Optional[BaseRetriever] = None, # RAG용 검색기 추가
-        npc_id: str = "청갈치",
-        personas: Dict[str, str] = None,
+        npc_id: str = "CHEONGGALCHI",
         initial_state: NPCState = None
     ):
         self.analyzer = analyzer
         self.llm = llm
         self.retriever = retriever
         self.npc_id = npc_id
-        self.personas = personas or CHUNG_GALCHI_PERSONAS
         self.state = initial_state or NPCState()
         
         # 디버그 모드
@@ -132,14 +66,12 @@ class NPCDialoguePipeline:
         시스템 프롬프트 구성
         
         구성 요소:
-        1. 페르소나 (관계도에 따라 선택)
+        1. RAG 컨텍스트 (페르소나 정의 + 기억)
         2. 컨트롤 시그널 (분석 결과)
-        3. RAG 컨텍스트 (기억/지식)
         3. 출력 제약
         """
-        # 관계도에 따른 페르소나 선택
+        # 관계도 버킷 계산 (프롬프트에 힌트로 제공)
         bucket = get_relationship_bucket(self.state.friendly)
-        persona = self.personas.get(bucket, self.personas["normal"])
         
         # 컨트롤 시그널
         control_signal = format_control_signal(
@@ -148,32 +80,42 @@ class NPCDialoguePipeline:
             analysis["faith_delta"]
         )
         
-        # 컨텍스트 블록 구성 (정보가 있을 때만)
-        context_block = ""
+        # 한국어 이름 매핑
+        npc_names = {
+            "JeongGwangeo": "전광어",
+            "CHEONGGALCHI": "청갈치",
+            "ParkBokeo": "박복어",
+            "GwakBingeo":"곽빙어"
+        }
+        korean_name = npc_names.get(self.npc_id, self.npc_id)
+
+        # RAG 컨텍스트 블록 구성
+        # 검색된 문서가 없으면 기본 페르소나 요청
+        context_block = f"[BASIC_SETTING]\nYou are {korean_name} ({self.npc_id}). Converse according to the given situation."
         if context:
-            context_block = f"\n[관련 기억/지식]\n{context}\n"
+            context_block = f"\n[RETRIEVED_INFO (Persona/Memory)]\n{context}\n"
 
         # 시스템 프롬프트 조합
-        system_prompt = f"""{persona}
+        system_prompt = f"""{context_block}
 
 {control_signal}
-{context_block}
 
-[현재 관계 상태]
-- 호감도: {self.state.friendly}/100
-- 신뢰도: {self.state.faith}/100
+[CURRENT_RELATIONSHIP]
+- Friendly: {self.state.friendly}/100
+- Faith: {self.state.faith}/100
 
-[OUTPUT 규칙]
-- {self.npc_id}의 대사만 출력한다
-- 한국어로 작성한다
-- 선택지, 해설, 요약, 마크다운, 코드블록 금지
-- 마지막 문장은 반문, 제안, 또는 다음 행동 암시로 끝낸다
+[OUTPUT_RULES]
+- Output ONLY {korean_name}'s dialogue.
+- MUST SPEAK IN KOREAN.
+- NO options, explanations, summaries, markdown, or code blocks.
+- End the last sentence with a counter-question, suggestion, or implying next action.
 """
         return system_prompt.strip()
     
     def chat(
         self,
         user_message: str,
+        history: Optional[List[Dict[str, str]]] = None,
         max_new_tokens: int = 160,
         do_sample: bool = False
     ) -> Dict[str, Any]:
@@ -182,6 +124,7 @@ class NPCDialoguePipeline:
         
         Args:
             user_message: 사용자 입력
+            history: 대화 내역 [{"speaker": "user"|"npc", "content": "..."}, ...]
             max_new_tokens: 생성 토큰 수
             do_sample: 샘플링 사용 여부
             
@@ -193,6 +136,8 @@ class NPCDialoguePipeline:
                 "debug": Optional[Dict]
             }
         """
+        from typing import List, Dict
+
         # 1. 의도 분석
         analysis = self.analyzer.analyze(user_message)
         
@@ -202,23 +147,46 @@ class NPCDialoguePipeline:
             analysis["faith_delta"]
         )
         
-        # 3. RAG: 관련 정보 검색 (Retriever가 설정된 경우)
+        # 3. RAG: 관련 정보 검색 (페르소나 + 기억)
+        # 검색 쿼리에 NPC ID를 포함하여 해당 NPC의 페르소나를 우선적으로 찾도록 유도
         context_text = ""
         if self.retriever:
             try:
-                docs = self.retriever.invoke(user_message)
+                # 쿼리 확장: "NPC_ID 페르소나" + 사용자 질문
+                search_query = f"{self.npc_id} 성격 특징. {user_message}"
+                docs = self.retriever.invoke(search_query)
                 context_text = "\n".join([doc.page_content for doc in docs])
             except Exception as e:
                 print(f"⚠️ [RAG] 검색 실패: {e}")
 
         # 4. 시스템 프롬프트 생성 (컨텍스트 포함)
+        npc_names = {
+            "JeongGwangeo": "전광어",
+            "CHEONGGALCHI": "청갈치",
+            "ParkBokeo": "박복어",
+            "GwakBingeo":"곽빙어"
+        }
+        korean_name = npc_names.get(self.npc_id, self.npc_id)
+
         system_prompt = self._build_system_prompt(user_message, analysis, context=context_text)
         
-        # 5. 대화 생성
-        prompt_template = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("human", "{user_input}")
-        ])
+        # 5. 대화 생성 프롬프트 구성 (Gemma 2 포맷 적용)
+        # 구조: System(User) -> Ack(Model) -> History -> Current(User) -> Model
+        
+        full_prompt = f"<start_of_turn>user\n{system_prompt}<end_of_turn>\n"
+        full_prompt += f"<start_of_turn>model\n확인했습니다. {korean_name}의 페르소나로 대화하겠습니다.<end_of_turn>\n"
+        
+        # 대화 이력 추가
+        if history:
+            for msg in history[-10:]: # 최근 10개만 사용
+                role = "user" if msg.get("speaker") == "user" else "model"
+                content = msg.get("content", "")
+                full_prompt += f"<start_of_turn>{role}\n{content}<end_of_turn>\n"
+        
+        # 현재 사용자 메시지 추가
+        full_prompt += f"<start_of_turn>user\n{{user_input}}<end_of_turn>\n<start_of_turn>model\n"
+
+        prompt_template = PromptTemplate(input_variables=["user_input"], template=full_prompt)
 
         # 파이프라인 내에서 동적으로 체인 구성 및 실행
         chain = prompt_template | self.llm | StrOutputParser()
@@ -259,6 +227,12 @@ class NPCDialoguePipeline:
 
 if __name__ == "__main__":
     import os
+    import sys
+    
+    # 프로젝트 루트 경로 추가 (직접 실행 시 필요)
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+    from app.core.llm_factory import LLMFactory
     
     print("=== NPC Dialogue Pipeline Demo ===\n")
     
@@ -270,18 +244,14 @@ if __name__ == "__main__":
         tag_threshold=0.35
     )
     
-    print("[2/3] Loading DialogueGenerator...")
-    generator = DialogueGenerator(
-        model_name="google/gemma-2-2b-it",  # 또는 "google/gemma-2-9b-it"
-        hf_token=os.environ.get("HF_TOKEN"),
-        use_4bit=True
-    )
+    print("[2/3] Loading LLM (via LLMFactory)...")
+    llm = LLMFactory.create_llm(model_key="npc")
     
     print("[3/3] Creating pipeline...")
     pipeline = NPCDialoguePipeline(
         analyzer=analyzer,
-        generator=generator,
-        npc_id="청갈치",
+        llm=llm,
+        npc_id="CHEONGGALCHI",
         initial_state=NPCState(friendly=50, faith=50)
     )
     
