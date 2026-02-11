@@ -13,6 +13,12 @@ bitsandbytes
 pytest
 httpx
 peft
+sentencepiece
+tiktoken
 langsmith
 langchain
 langchain-core
+langchain-community
+langchain-huggingface
+langchain_chroma
+sentence-transformers

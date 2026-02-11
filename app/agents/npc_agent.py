@@ -1,7 +1,7 @@
 import os
 from typing import Dict
+from app.core.config import settings
 from app.agents.npc_dialogue_engine import IntentAnalyzer, DialogueGenerator
-from app.agents.npc_pipeline import CHUNG_GALCHI_PERSONAS
 
 class NpcAgent:
     """
@@ -13,6 +13,15 @@ class NpcAgent:
     """
     
     def __init__(self):
+        # GPU Proxy 모드: 모델 로드 건너뛰기 (EC2에서 실행)
+        if settings.USE_GPU_PROXY:
+            print("[NpcAgent] GPU Proxy mode — skipping local model loading")
+            self.analyzer = None
+            self.generator = None
+            self.generation_enabled = False
+            self.llm = None
+            return
+
         print("[NpcAgent] Initializing with new architecture...")
         
         # 경로 설정
@@ -86,12 +95,12 @@ class NpcAgent:
         if not self.generation_enabled:
             return "⚠️ 대화 생성 기능이 비활성화되어 있습니다. (분석 모드만 지원)"
         
-        # 간단한 프롬프트를 파이프라인 형식으로 변환
-        # 기존: "당신은 '{npc_id}'입니다. ... User: {message}"
-        # → 분석 없이 직접 생성
-        
         # 기본 페르소나 사용
-        persona = CHUNG_GALCHI_PERSONAS.get("normal", "")
+        persona = """[NPC_ID]
+이름: 청갈치
+정체: 우미교의 신도이자 정보 거래상
+[PERSONALITY]
+실용적, 거래 지향적, 호기심 있음"""
         
         system_prompt = f"""{persona}
 

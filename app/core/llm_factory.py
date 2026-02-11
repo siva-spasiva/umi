@@ -6,10 +6,6 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from app.core.config import settings
 
 class LLMFactory:
-    """
-    설정에 따라 로컬 파인튜닝 모델(HuggingFace) 또는 Ollama 모델을
-    LangChain Runnable 객체로 반환하는 팩토리 클래스
-    """
 
     @staticmethod
     def create_llm(model_key: str = "npc", temperature: float = 0.1):

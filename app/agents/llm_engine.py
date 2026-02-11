@@ -1,8 +1,9 @@
 import asyncio
 from typing import List, Dict, Optional
 from app.agents.npc_agent import npc_agent
-from app.agents.npc_pipeline import NPCDialoguePipeline, CHUNG_GALCHI_PERSONAS
+from app.agents.npc_pipeline import NPCDialoguePipeline
 from app.agents.npc_dialogue_engine import NPCState
+from app.core.config import settings
 from langsmith import traceable
 
 # 메모리 및 스토리 에이전트 추가
@@ -34,7 +35,6 @@ class LLMEngine:
                 llm=self.agent.llm, 
                 retriever=self.retriever, # RAG 검색기 주입
                 npc_id=npc_id,
-                personas=CHUNG_GALCHI_PERSONAS,  # NPC별로 다른 페르소나 사용 가능
                 initial_state=NPCState(friendly=50, faith=50)
             )
         
@@ -43,6 +43,11 @@ class LLMEngine:
     @traceable(run_type="llm", name="NPC_Generation")
     async def ask(self, npc_id: str, message: str, history: Optional[List[Dict]] = None) -> str:
         """LLM에게 페르소나와 대화 내역을 전달하여 응답을 생성합니다."""
+        # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
+        if settings.USE_GPU_PROXY:
+            from app.core.gpu_proxy import gpu_proxy
+            return await gpu_proxy.generate_npc_response(npc_id, message, history)
+
         try:
             # 파이프라인 가져오기
             pipeline = self._get_or_create_pipeline(npc_id)

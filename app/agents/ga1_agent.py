@@ -9,6 +9,13 @@ from app.core.config import settings
 class GA1Agent:
     """GA1: 유저 입력의 안전성 및 비속어 검증 (가드레일 1단계)"""
     def __init__(self):
+        # GPU Proxy 모드: 모델 로드 건너뛰기
+        if settings.USE_GPU_PROXY:
+            print("[GA1] GPU Proxy mode — skipping local model loading")
+            self.model = None
+            self.tokenizer = None
+            return
+
         # [경로 자동 보정]
         # 1. 현재 파일(ga1_agent.py)이 있는 폴더 기준 'ga1_model' 경로 계산
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,7 +54,12 @@ class GA1Agent:
                 print(f"   👉 (힌트) 로컬 경로 '{self.model_path}'가 정확한지 확인하세요. (현재 실행 위치: {os.getcwd()})")
 
     async def check_safety(self, message: str) -> Tuple[bool, Optional[str]]:
-        """로컬 모델을 사용하여 유저의 입력이 안전한지 검사합니다."""
+        """유저의 입력이 안전한지 검사합니다. GPU Proxy 사용 시 원격 추론."""
+        # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
+        if settings.USE_GPU_PROXY:
+            from app.core.gpu_proxy import gpu_proxy
+            return await gpu_proxy.check_safety(message)
+
         if not self.model or not self.tokenizer:
             print("[WARN] GA1 모델이 로드되지 않았습니다. 통과 처리합니다.")
             return True, None

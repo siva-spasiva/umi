@@ -22,16 +22,15 @@ class ChatService(BaseService):
         if not is_safe:
             return {"response": safety_msg, "status": "blocked_by_ga1"}
 
-        # # 2. GA2: 문맥 및 세계관 검증
-        # TODO : 아직 GA2모델이 개발되지 않아서 사용
-        # history = await self._get_recent_history(user_id, npc_id, limit=5)
+        # 2. GA2: 문맥 및 세계관 검증
+        # TODO : 아직 GA2모델이 개발되지 않아서 사용 (History는 LLM에 전달)
+        history = await self._get_recent_history(user_id, npc_id, limit=5)
         # is_context_ok, context_msg = await ga2_context.check_context(message, history)
         # if not is_context_ok:
         #     return {"response": context_msg, "status": "blocked_by_ga2"}
 
         # 3. LLM Generation
-        # raw_response = await llm_engine.ask(npc_id, message, history)
-        raw_response = await llm_engine.ask(npc_id, message)
+        raw_response = await llm_engine.ask(npc_id, message, history)
 
         # 4. Output Guardrail (페르소나 체크 등)
         is_output_safe, final_response = await ga_agent.validate_output(raw_response)

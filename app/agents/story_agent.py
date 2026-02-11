@@ -5,17 +5,18 @@ from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from peft import PeftModel
 from app.core.config import settings
 
-try:
-    from mlx_lm import load as mlx_load, generate as mlx_generate
-    HAS_MLX = True
-except ImportError:
-    HAS_MLX = False
-
 class StoryAgent:
     """
     Story Agent: LLM을 사용하여 스토리 진행, 대화 생성, 요약 등을 수행합니다.
     """
     def __init__(self):
+        # GPU Proxy 모드: 모델 로드 건너뛰기
+        if settings.USE_GPU_PROXY:
+            print("[StoryAgent] GPU Proxy mode — skipping local model loading")
+            self.model = None
+            self.tokenizer = None
+            return
+
         # 베이스 모델 ID (Qwen 2.5 7B Instruct)
         self.base_model_id = "Qwen/Qwen2.5-7B-Instruct"
         
@@ -32,18 +33,6 @@ class StoryAgent:
         else:
             self.adapter_path = settings.STORY_MODEL_PATH
         
-        # [Ollama 모드] 로컬 개발 시 Ollama 서버 사용 (USE_OLLAMA=true)
-        self.use_ollama = settings.USE_OLLAMA
-        self.ollama_url = settings.OLLAMA_URL or "http://localhost:11434/api/generate"
-        self.ollama_model = settings.OLLAMA_MODEL or "llama3"
-
-        # [MLX 모드] Apple Silicon 가속 사용
-        # 주의: MLX는 .pt 파일을 직접 읽지 못하므로, 변환된 모델이 있을 때만 .env에서 USE_MLX=true로 설정하세요.
-        self.use_mlx = settings.USE_MLX
-        if self.use_mlx and not HAS_MLX:
-            print("⚠️ [StoryAgent] USE_MLX is True but mlx-lm is not installed. Fallback to PyTorch.")
-            self.use_mlx = False
-
         if torch.cuda.is_available():
             self.device = "cuda"
         elif torch.backends.mps.is_available():
@@ -54,34 +43,8 @@ class StoryAgent:
         self.model = None
         self.tokenizer = None
         
-        if self.use_ollama:
-            print(f"🐙 [StoryAgent] Ollama Mode Activated - URL: {self.ollama_url}, Model: {self.ollama_model}")
-            # [경고] Ollama 모드에서는 로컬 모델 경로가 무시됨을 알림
-            if self.adapter_path:
-                print(f"⚠️ [WARN] Ollama 모드 사용 중: 로컬 모델 경로 '{self.adapter_path}'는 무시됩니다.")
-                print(f"          Ollama 서버에 등록된 '{self.ollama_model}' 모델을 사용합니다.")
-        elif self.use_mlx:
-            print(f"🍎 [StoryAgent] MLX Mode Activated")
-            self._load_mlx_model()
-        else:
-            # Ollama 모드가 아니면 실제 모델 로드 시도 (GPU/CPU)
-            self._load_model()
-
-    def _load_mlx_model(self):
-        """MLX를 사용하여 모델을 로드합니다."""
-        try:
-            path_to_load = self.adapter_path if (self.adapter_path and os.path.exists(self.adapter_path)) else self.base_model_id
-            
-            if os.path.isdir(path_to_load) and "best_model.pt" in os.listdir(path_to_load):
-                print(f"⚠️ [StoryAgent] MLX 모드 경고: '{path_to_load}' 폴더에 'best_model.pt'가 감지되었습니다.")
-                print("          MLX 라이브러리는 PyTorch(.pt) 가중치를 직접 로드하지 못할 수 있습니다.")
-                print("          모델을 MLX 포맷으로 변환하거나, PyTorch 모드(USE_MLX=false)를 사용하세요.")
-
-            print(f"🔄 [StoryAgent] Loading MLX Model from: {path_to_load}...")
-            self.model, self.tokenizer = mlx_load(path_to_load)
-            print(f"✅ [StoryAgent] MLX Model Loaded")
-        except Exception as e:
-            print(f"⚠️ [StoryAgent] MLX 모델 로드 실패: {e}")
+        # 실제 모델 로드 시도 (GPU/CPU)
+        self._load_model()
 
     def _load_model(self):
         """서버 시작 시 LLM을 메모리에 로드합니다."""
@@ -137,44 +100,20 @@ class StoryAgent:
 
     def generate(self, prompt: str, max_new_tokens: int = 256) -> str:
         """프롬프트를 입력받아 텍스트를 생성합니다."""
-        # 1. Ollama 사용 (로컬 테스트)
-        if self.use_ollama:
+        # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
+        if settings.USE_GPU_PROXY:
             try:
-                payload = {
-                    "model": self.ollama_model,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {"num_predict": max_new_tokens}
-                }
-                # 타임아웃을 넉넉하게 설정 (로컬 LLM 속도 고려)
-                with httpx.Client(timeout=60.0) as client:
-                    response = client.post(self.ollama_url, json=payload)
-                    
-                    # [에러 디버깅] 404 등 에러 발생 시 상세 메시지 출력
-                    if response.status_code != 200:
-                        print(f"⚠️ [StoryAgent] Ollama Error ({response.status_code}): {response.text}")
-
+                server_url = settings.GPU_SERVER_URL.rstrip("/")
+                with httpx.Client(timeout=settings.GPU_PROXY_TIMEOUT) as client:
+                    response = client.post(
+                        f"{server_url}/infer/story",
+                        json={"prompt": prompt, "max_new_tokens": max_new_tokens}
+                    )
                     response.raise_for_status()
-                    res_json = response.json()
-                    
-                    # [검증용 로그] Ollama 처리 속도 출력 (GPU 사용 시 매우 빠름)
-                    total_ns = res_json.get("total_duration", 0)
-                    eval_count = res_json.get("eval_count", 0)
-                    print(f"🐙 [StoryAgent/Ollama] 생성 완료: {eval_count} tokens (소요시간: {total_ns/1e9:.2f}s)")
-                    
-                    return res_json.get("response", "")
+                    return response.json()["text"]
             except Exception as e:
-                print(f"[ERROR] Ollama 생성 오류: {e}")
-                return "시스템: Ollama 서버와 통신할 수 없습니다."
-
-        # 2. MLX 사용
-        if self.use_mlx:
-            try:
-                response = mlx_generate(self.model, self.tokenizer, prompt=prompt, max_tokens=max_new_tokens, verbose=False, temp=0.7)
-                return response.strip()
-            except Exception as e:
-                print(f"[ERROR] MLX 생성 오류: {e}")
-                return "시스템: 대화 생성 중 오류가 발생했습니다."
+                print(f"⚠️ [StoryAgent] GPU Proxy 오류: {e}")
+                return "시스템: GPU 서버에 연결할 수 없습니다."
 
         try:
             # device_map="auto" 사용 시 모델이 여러 GPU에 걸쳐 있을 수 있으므로, 첫 번째 레이어의 장치를 따라갑니다.
@@ -204,16 +143,25 @@ class StoryAgent:
     def generate_diary(self, messages, fish_level=3, max_new_tokens=400) -> str:
         """
         하루의 대화 로그를 바탕으로 일기(스토리 요약)를 작성합니다.
-        Colab의 make_diary_from_messages 로직을 이식했습니다.
         """
-        if self.use_ollama:
-            # Ollama 사용 시 간단히 프롬프트 결합하여 요청
-            full_prompt = (
-                f"System: 너는 텍스트 기반 잠입수사 게임 Project: UMI_PROTOCOL의 스토리 에이전트다. "
-                f"입력은 하루의 대화 로그(messages)이며, 이를 바탕으로 '일기'만 작성한다.\n"
-                f"User: [fish_level={fish_level}]\n{messages}\nAssistant:"
-            )
-            return self.generate(full_prompt, max_new_tokens)
+        # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
+        if settings.USE_GPU_PROXY:
+            try:
+                server_url = settings.GPU_SERVER_URL.rstrip("/")
+                with httpx.Client(timeout=settings.GPU_PROXY_TIMEOUT) as client:
+                    response = client.post(
+                        f"{server_url}/infer/story/diary",
+                        json={
+                            "messages": str(messages),
+                            "fish_level": fish_level,
+                            "max_new_tokens": max_new_tokens
+                        }
+                    )
+                    response.raise_for_status()
+                    return response.json()["text"]
+            except Exception as e:
+                print(f"⚠️ [StoryAgent] GPU Proxy Diary 오류: {e}")
+                return "시스템: GPU 서버에 연결할 수 없습니다."
 
         if not self.model or not self.tokenizer:
             return "시스템: 모델이 로드되지 않아 일기를 작성할 수 없습니다."

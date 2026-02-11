@@ -1,21 +1,36 @@
 # Python
 __pycache__/
 *.pyc
-
-# Virtual Environments
-.venv/
-venv/
+*.pyo
+*.pyd
+.Python
 env/
-ENV/
-
-# Secrets
+venv/
 .env
 
-# IDE / Editor specific
+# MacOS
+.DS_Store
+
+# IDE
 .vscode/
 .idea/
 
-# AI Models & Large files
-/app/agents/NPC_model/*
-/app/agents/story_agent_model/*
-/app/agents/ga1_model/*
+# Logs
+*.log
+
+# Sensitive Files (User Request)
+connect_aws.sh
+app/core/config.py
+spsb.pem
+# EC2 전용 파일 (필요 시)
+gpu_server.py
+
+# Local Models & Data
+chroma_db/
+app/agents/*_model/
+app/agents/NPC_model/
+app/agents/ga1_model/
+app/agents/story_agent_model/
+app/agents/ga2_model/
+# (임시 데이터 생성 스크립트라면 제외)
+app/data/init_data.py

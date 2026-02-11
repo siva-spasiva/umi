@@ -113,7 +113,7 @@ class LLMEngine:
                 analyzer=self.agent.analyzer,
                 llm=self.agent.llm,
                 npc_id=npc_id,
-                personas=CHUNG_GALCHI_PERSONAS,  # NPC별로 다른 페르소나 사용 가능
+                personas="CHUNG_GALCHI_PERSONAS",  # NPC별로 다른 페르소나 사용 가능
                 initial_state=NPCState(friendly=50, faith=50)
             )
         
