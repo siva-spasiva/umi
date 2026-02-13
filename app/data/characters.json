@@ -2,31 +2,56 @@
   "JEONGGWANGEO": {
     "name_kr": "전광어",
     "name_en": "JeongGwangeo",
+    "id": "JeongGwangeo",
     "role": "leader",
-    "stats": { "friendly": 30, "faith": 90, "trust": 0 }
+    "stats": {
+      "friendly": 30,
+      "faith": 90,
+      "trust": 0
+    }
   },
   "REPORTER_LEE": {
-    "name_kr": "이기자",
+    "name_kr": "이민어",
     "name_en": "Reporter Lee",
+    "id": "ReporterLee",
     "role": "reporter",
-    "stats": { "friendly": 30, "faith": 0, "trust": 0 }
+    "stats": {
+      "friendly": 30,
+      "faith": 0,
+      "trust": 0
+    }
   },
   "PARKBOKEO": {
     "name_kr": "박복어",
     "name_en": "ParkBokeo",
+    "id": "ParkBokeo",
     "role": "believer",
-    "stats": { "friendly": 40, "faith": 60, "trust": 0 }
+    "stats": {
+      "friendly": 40,
+      "faith": 60,
+      "trust": 0
+    }
   },
   "CHEONGGALCHI": {
     "name_kr": "청갈치",
     "name_en": "CheongGalchi",
+    "id": "CheongGalchi",
     "role": "believer",
-    "stats": { "friendly": 50, "faith": 50, "trust": 0 }
+    "stats": {
+      "friendly": 50,
+      "faith": 50,
+      "trust": 0
+    }
   },
   "GWAKBINGEO": {
     "name_kr": "곽빙어",
     "name_en": "GwakBingeo",
+    "id": "GwakBingeo",
     "role": "believer",
-    "stats": { "friendly": 30, "faith": 70, "trust": 0 }
+    "stats": {
+      "friendly": 30,
+      "faith": 70,
+      "trust": 0
+    }
   }
 }

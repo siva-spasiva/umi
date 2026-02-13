@@ -8,6 +8,7 @@ NPC 대화 생성 시스템 (프로덕션)
 
 import os
 import re
+import json
 import torch
 import torch.nn as nn
 from dataclasses import dataclass, asdict
@@ -36,16 +37,19 @@ class NPCState:
 
 def get_relationship_bucket(friendly: int) -> str:
     """
-    관계도에 따른 페르소나 선택
-    - bad: 0-39 (적대적)
-    - normal: 40-69 (중립)
-    - good: 70-100 (호의적)
+    관계도에 따른 페르소나 선택 (4단계)
+    - bad: 0-19 (적대적)
+    - normal: 20-45 (중립)
+    - good: 46-75 (호의적)
+    - perfect: 76-100 (완전 신뢰)
     """
-    if friendly < 40:
+    if friendly <= 19:
         return "bad"
-    elif friendly < 70:
+    elif friendly <= 45:
         return "normal"
-    return "good"
+    elif friendly <= 75:
+        return "good"
+    return "perfect"
 
 
 # ============================================================
@@ -84,19 +88,22 @@ class UmiJudger(nn.Module):
 
 
 class IntentAnalyzer:
-    """의도 분석 엔진 (UmiJudger 래퍼)"""
+    """의도 분석 엔진 (UmiJudger 래퍼) — v2: per-tag threshold + top-k fallback"""
     
     def __init__(
         self, 
         encoder_model: str = "monologg/koelectra-base-v3-discriminator",
         checkpoint_path: str = None,
         max_length: int = 256,
-        tag_threshold: float = 0.35,
+        tag_k: int = 3,
+        tag_min_p: float = 0.15,
+        threshold_json_path: Optional[str] = None,
         device: Optional[str] = None
     ):
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
         self.max_length = max_length
-        self.tag_threshold = tag_threshold
+        self.tag_k = int(tag_k)
+        self.tag_min_p = float(tag_min_p)
         
         # 토크나이저 로드
         self.tokenizer = AutoTokenizer.from_pretrained(encoder_model)
@@ -113,11 +120,29 @@ class IntentAnalyzer:
             print(f"[IntentAnalyzer] No checkpoint loaded. Using base model.")
         
         self.model.eval()
+        
+        # 태그별 threshold 로드 (thresholds_standard.json)
+        self.tag_thresholds: Dict[str, float] = {t: 0.5 for t in VALID_TAGS}  # fallback
+        if threshold_json_path and os.path.exists(threshold_json_path):
+            with open(threshold_json_path, "r", encoding="utf-8") as f:
+                loaded = json.load(f)
+            # JSON 형식: {"tags": [...], "thresholds": [...]} 또는 {"TAG_NAME": value}
+            if "tags" in loaded and "thresholds" in loaded:
+                for tag_name, thresh_val in zip(loaded["tags"], loaded["thresholds"]):
+                    if tag_name in self.tag_thresholds:
+                        self.tag_thresholds[tag_name] = float(thresh_val)
+            else:
+                for t in VALID_TAGS:
+                    if t in loaded:
+                        self.tag_thresholds[t] = float(loaded[t])
+            print(f"[IntentAnalyzer] Loaded per-tag thresholds: {threshold_json_path}")
+        else:
+            print(f"[IntentAnalyzer] No threshold JSON found. Using fallback=0.5 for all tags.")
     
     @torch.no_grad()
     def analyze(self, text: str) -> Dict[str, Any]:
         """
-        텍스트 의도 분석
+        텍스트 의도 분석 (v2: per-tag threshold + top-k fallback)
         
         Returns:
             {
@@ -145,22 +170,38 @@ class IntentAnalyzer:
         # 예측
         tag_logits, friendly_logits, faith_logits = self.model(**encoding)
         
-        # 태그 예측 (multi-label)
-        tag_probs = torch.sigmoid(tag_logits[0]).cpu()
-        reason_tags = [
-            VALID_TAGS[i] for i, p in enumerate(tag_probs) 
-            if float(p) > self.tag_threshold
-        ]
+        # 태그 확률 계산
+        probs = torch.sigmoid(tag_logits)[0]
+        tag_probs = {VALID_TAGS[i]: float(probs[i]) for i in range(len(VALID_TAGS))}
         
-        # 감정 변화 예측
-        friendly_delta = int(torch.argmax(friendly_logits, dim=1).item()) - 5
-        faith_delta = int(torch.argmax(faith_logits, dim=1).item()) - 5
+        # 1) per-tag threshold로 먼저 선택
+        picked = [t for t in VALID_TAGS if tag_probs[t] >= self.tag_thresholds.get(t, 0.5)]
+        
+        # 2) 아무것도 안 걸리면 top-k fallback
+        if not picked:
+            ranked = sorted(tag_probs.items(), key=lambda x: -x[1])
+            picked = [t for t, p in ranked[:max(1, self.tag_k)] if p >= self.tag_min_p]
+            if not picked:
+                picked = [ranked[0][0]]
+        
+        # 3) 너무 많이 걸리면 상위 k개로 제한
+        if len(picked) > self.tag_k:
+            picked = sorted(picked, key=lambda t: -tag_probs[t])[:self.tag_k]
+        
+        # 감정 변화 예측 (-5 ~ +5)
+        friendly_delta = max(-5, min(5, int(torch.argmax(friendly_logits, dim=1).item()) - 5))
+        faith_delta = max(-5, min(5, int(torch.argmax(faith_logits, dim=1).item()) - 5))
+        
+        print(f"\n[DEBUG] 의도 분석 결과:")
+        print(f"  선택된 태그: {picked}")
+        print(f"  태그 확률 (상위 5개): {sorted(tag_probs.items(), key=lambda x: -x[1])[:5]}")
+        print(f"  감정 변화: friendly={friendly_delta:+d}, faith={faith_delta:+d}")
         
         return {
-            "reason_tags": reason_tags,
+            "reason_tags": picked,
             "friendly_delta": friendly_delta,
             "faith_delta": faith_delta,
-            "tag_probs": {VALID_TAGS[i]: float(tag_probs[i]) for i in range(len(VALID_TAGS))}
+            "tag_probs": tag_probs
         }
 
 
@@ -369,6 +410,23 @@ def sanitize_npc_response(text: str) -> str:
     text = re.sub(r"^\d+\.\s+.*$", "", text, flags=re.MULTILINE)
     text = re.sub(r"^[가-힣]\)\s+.*$", "", text, flags=re.MULTILINE)
     
+    # 이모지 제거
+    text = re.sub(
+        r"[\U0001F600-\U0001F64F"   # Emoticons
+        r"\U0001F300-\U0001F5FF"     # Misc Symbols & Pictographs
+        r"\U0001F680-\U0001F6FF"     # Transport & Map
+        r"\U0001F1E0-\U0001F1FF"     # Flags
+        r"\U00002702-\U000027B0"     # Dingbats
+        r"\U0000FE00-\U0000FE0F"     # Variation Selectors
+        r"\U0001F900-\U0001F9FF"     # Supplemental Symbols
+        r"\U0001FA00-\U0001FA6F"     # Chess Symbols
+        r"\U0001FA70-\U0001FAFF"     # Symbols Extended-A
+        r"\U00002600-\U000026FF"     # Misc Symbols
+        r"\U0000200D"                # Zero Width Joiner
+        r"\U00002B50\U00002B55"      # Stars
+        r"]+", "", text
+    )
+    
     # 연속된 줄바꿈 정리
     text = re.sub(r"\n{3,}", "\n\n", text)
     
@@ -381,23 +439,20 @@ def format_control_signal(
     faith_delta: int
 ) -> str:
     """
-    컨트롤 시그널 포맷팅
+    컨트롤 시그널 포맷팅 (한국어)
     - 분석 결과를 LLM이 이해할 수 있는 형태로 변환
     """
     tag_str = ", ".join(tags) if tags else "NONE"
     
     signal = f"""[CONTROL_SIGNAL]
-REASON_TAGS: {tag_str}
-PREDICTED_DELTA: friendly={friendly_delta:+d}, faith={faith_delta:+d}
+REASON_TAGS={tag_str}
+PREDICTED_DELTA friendly={friendly_delta:+d}, faith={faith_delta:+d}
 
-ACTION_GUIDE:
-- WITHDRAW_TRUST detected: Strengthen vigilance, distance yourself, question back more.
-- BUILD_TRUST detected: Open up to cooperation, consider sharing information.
-- DEFLECT/GASLIGHT: Avoid direct answers, speak evasively or metaphorically.
-- TEST_BOUNDARY: Try to determine the other's hidden intent.
-- PROTECT_SECRET/PROTECT_DOCTRINE: Hide core truth, give only vague hints.
-- INCREASE_SUSPICION: Be wary of suspicious questions.
-- REDUCE_SUSPICION: Detect attempts to build rapport.
+지도:
+- WITHDRAW_TRUST가 있으면: 더 경계/거리두기/반문 강화.
+- BUILD_TRUST가 있으면: 거래 제안/협력 가능성은 열어두기.
+- DEFLECT/GASLIGHT/TEST_BOUNDARY/INCREASE_SUSPICION가 있으면: 즉답 회피 + 떠보기.
+- PROTECT_SECRET/PROTECT_DOCTRINE가 있으면: 핵심은 숨기고 연결 힌트로.
 """
     return signal.strip()
 

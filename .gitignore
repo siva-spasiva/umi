@@ -29,8 +29,12 @@ gpu_server.py
 chroma_db/
 app/agents/*_model/
 app/agents/NPC_model/
+app/agents/NPC_model_v2/
 app/agents/ga1_model/
 app/agents/story_agent_model/
 app/agents/ga2_model/
 # (임시 데이터 생성 스크립트라면 제외)
 app/data/init_data.py
+
+# ab_test_result
+/ab_test_results/*
