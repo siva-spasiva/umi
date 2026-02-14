@@ -49,8 +49,11 @@ class NPCPromptLoader:
     }
     """
     
-    def __init__(self, json_path: str):
-        """NPC_prompt.json 로드 및 ID→데이터 매핑 구축"""
+    def __init__(self, json_path: str, characters_json_path: Optional[str] = None):
+        """
+        NPC_prompt.json 로드 및 ID→데이터 매핑 구축
+        characters_json_path가 제공되면 초기 스탯 정보도 로드
+        """
         if not os.path.exists(json_path):
             raise FileNotFoundError(f"NPC 프롬프트 JSON 파일을 찾을 수 없습니다: {json_path}")
         
@@ -66,6 +69,25 @@ class NPCPromptLoader:
             self._npcs_by_id[npc_id] = (kr_name, npc_data)
             # 대문자 버전도 매핑 (CHEONGGALCHI → CheongGalchi)
             self._npcs_by_id[npc_id.upper()] = (kr_name, npc_data)
+        
+        # characters.json 로드 (초기 스탯용)
+        self._character_stats: Dict[str, Dict] = {}
+        if characters_json_path and os.path.exists(characters_json_path):
+            try:
+                with open(characters_json_path, "r", encoding="utf-8") as f:
+                    char_data = json.load(f)
+                
+                # Korean Name -> Stats 매핑 생성
+                # characters.json 구조: {"KEY": {"name_kr": "...", "stats": ...}}
+                for key, info in char_data.items():
+                    name_kr = info.get("name_kr")
+                    stats = info.get("stats", {})
+                    if name_kr:
+                        self._character_stats[name_kr] = stats
+                
+                print(f"[NPCPromptLoader] Loaded stats for {len(self._character_stats)} characters from characters.json")
+            except Exception as e:
+                print(f"⚠️ [NPCPromptLoader] Failed to load characters.json: {e}")
         
         print(f"[NPCPromptLoader] Loaded {len(self._npcs_by_korean_name)} NPCs from {json_path}")
         for kr_name, npc_data in self._npcs_by_korean_name.items():
@@ -84,6 +106,23 @@ class NPCPromptLoader:
         """NPC ID로 (한국어 이름, NPC 데이터) 반환"""
         return self._npcs_by_id.get(npc_id) or self._npcs_by_id.get(npc_id.upper())
     
+    def get_initial_state(self, npc_id: str) -> NPCState:
+        """
+        NPC ID에 해당하는 초기 상태(NPCState) 반환
+        characters.json 데이터가 있으면 사용, 없으면 기본값(50/50)
+        """
+        kr_name = self.get_korean_name(npc_id)
+        stats = self._character_stats.get(kr_name)
+        
+        if stats:
+            return NPCState(
+                friendly=stats.get("friendly", 50),
+                faith=stats.get("faith", 50)
+            )
+        
+        # Fallback
+        return NPCState(friendly=50, faith=50)
+
     def build_persona_prompt(self, npc_id: str, friendly: int) -> str:
         """
         NPC ID와 friendly 점수에 따라 시스템 프롬프트를 생성한다.
@@ -232,6 +271,7 @@ class NPCDialoguePipeline:
         self,
         user_message: str,
         history: Optional[List[Dict[str, str]]] = None,
+        memory_context: Optional[str] = None,
         max_new_tokens: int = 160,
         do_sample: bool = False
     ) -> Dict[str, Any]:
@@ -241,6 +281,7 @@ class NPCDialoguePipeline:
         Args:
             user_message: 사용자 입력
             history: 대화 내역 [{"speaker": "user"|"npc", "content": "..."}, ...]
+            memory_context: 로컬에서 검색한 장기 기억 컨텍스트 (Vector DB)
             max_new_tokens: 생성 토큰 수
             do_sample: 샘플링 사용 여부
             
@@ -261,7 +302,7 @@ class NPCDialoguePipeline:
             analysis["faith_delta"]
         )
         
-        # 3. RAG: 관련 정보 검색
+        # 3. RAG: 관련 정보 검색 (EC2 로컬 Vector DB)
         context_text = ""
         if self.retriever:
             try:
@@ -270,6 +311,14 @@ class NPCDialoguePipeline:
                 context_text = "\n".join([doc.page_content for doc in docs])
             except Exception as e:
                 print(f"⚠️ [RAG] 검색 실패: {e}")
+
+        # 4. 장기 기억 컨텍스트 병합 (로컬에서 전달받은 기억)
+        if memory_context:
+            if context_text:
+                context_text = context_text + "\n\n[LONG_TERM_MEMORY]\n" + memory_context
+            else:
+                context_text = "[LONG_TERM_MEMORY]\n" + memory_context
+            print(f"[Memory] 장기 기억 컨텍스트 적용 ({len(memory_context)}자)")
 
         # 4. 시스템 프롬프트 생성 (JSON 기반 페르소나 + 컨텍스트)
         system_prompt = self._build_system_prompt(user_message, analysis, context=context_text)

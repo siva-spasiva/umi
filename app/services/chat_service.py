@@ -29,8 +29,9 @@ class ChatService(BaseService):
         # if not is_context_ok:
         #     return {"response": context_msg, "status": "blocked_by_ga2"}
 
-        # 3. LLM Generation
-        raw_response = await llm_engine.ask(npc_id, message, history)
+        # 3. LLM Generation (Dict 반환: response + analysis + state)
+        llm_result = await llm_engine.ask(npc_id, message, history)
+        raw_response = llm_result.get("response", "")
 
         # 4. Output Guardrail (페르소나 체크 등)
         is_output_safe, final_response = await ga_agent.validate_output(raw_response)
@@ -38,7 +39,9 @@ class ChatService(BaseService):
         return {
             "response": final_response,
             "npcId": npc_id,
-            "status": "success" if is_output_safe else "sanitized"
+            "status": "success" if is_output_safe else "sanitized",
+            "analysis": llm_result.get("analysis"),
+            "state": llm_result.get("state")
         }
 
     async def _get_recent_history(self, user_id: str, npc_id: str, limit: int = 5):

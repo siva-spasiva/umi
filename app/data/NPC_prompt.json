@@ -1,7 +1,7 @@
 {
     "npcs": {
         "곽빙어": {
-            "id": "NPC_KWAK_01",
+            "id": "GwakBingeo",
             "role": "교단 내부 침입 전문가 / 플레이어 룸메이트",
             "affinity_levels": {
                 "BAD": {
@@ -63,7 +63,7 @@
             }
         },
         "청갈치": {
-            "id": "NPC_CHEONG_02",
+            "id": "CheongGalchi",
             "role": "우미교 신도 / 기회주의적 정보 사기꾼",
             "affinity_levels": {
                 "BAD": {
@@ -112,7 +112,7 @@
             }
         },
         "박복어": {
-            "id": "NPC_PARK_03",
+            "id": "ParkBokeo",
             "role": "수배 중인 살인마 / 도망자",
             "affinity_levels": {
                 "BAD": {
@@ -155,7 +155,7 @@
             }
         },
         "전광어": {
-            "id": "NPC_JEON_04",
+            "id": "JeongGwangeo",
             "role": "우미교 교주 / 소시오패스 지도자",
             "affinity_levels": {
                 "BAD": {

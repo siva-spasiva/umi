@@ -1,11 +1,20 @@
 from fastapi import APIRouter, HTTPException, status, Depends
+from pydantic import BaseModel
 from app.schemas.chat import DayLog, ChatRequest, ChatResponse
 from app.schemas.story import StorySummary
 
 from app.services.chat_service import chat_service
+from app.agents.llm_engine import llm_engine
 from app.core.security import get_current_user_id
 
 router = APIRouter()
+
+
+class EndDayRequest(BaseModel):
+    """하루 종료 요청"""
+    npc_id: str
+    day_index: int
+
 
 @router.post("/chat", summary="NPC와 대화 (가드레일 적용)")
 async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
@@ -65,3 +74,38 @@ async def get_story_summary(day_index: int, user_id: str = Depends(get_current_u
     if not summary:
         raise HTTPException(status_code=404, detail="해당 일차의 요약 정보가 없습니다.")
     return summary
+
+
+@router.post("/end-day",
+             summary="하루 종료 — 세션 요약 저장",
+             description="게임 내 하루가 끝날 때 호출합니다. 해당 NPC와의 대화를 요약하여 장기 기억(Vector DB)에 저장합니다."
+             )
+async def end_day(request: EndDayRequest, user_id: str = Depends(get_current_user_id)):
+    """
+    하루 종료 시 NPC 세션 대화를 요약하여 장기 기억에 저장합니다.
+    
+    - npc_id: NPC 식별자
+    - day_index: 게임 내 일차 (1~7)
+    """
+    try:
+        summary = await llm_engine.save_session_summary(request.npc_id, request.day_index)
+        
+        if summary is None:
+            return {
+                "status": "skipped",
+                "message": f"{request.npc_id}와의 대화가 없어 요약을 생략했습니다.",
+                "day_index": request.day_index
+            }
+        
+        return {
+            "status": "success",
+            "npc_id": request.npc_id,
+            "day_index": request.day_index,
+            "summary": summary
+        }
+    except Exception as e:
+        print(f"[ERROR] end-day: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"세션 요약 저장 중 오류 발생: {str(e)}"
+        )

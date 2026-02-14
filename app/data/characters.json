@@ -6,19 +6,17 @@
     "role": "leader",
     "stats": {
       "friendly": 30,
-      "faith": 90,
-      "trust": 0
+      "faith": 90
     }
   },
   "REPORTER_LEE": {
     "name_kr": "이민어",
-    "name_en": "Reporter Lee",
+    "name_en": "mineoLee",
     "id": "ReporterLee",
     "role": "reporter",
     "stats": {
       "friendly": 30,
-      "faith": 0,
-      "trust": 0
+      "faith": 30
     }
   },
   "PARKBOKEO": {
@@ -28,8 +26,7 @@
     "role": "believer",
     "stats": {
       "friendly": 40,
-      "faith": 60,
-      "trust": 0
+      "faith": 60
     }
   },
   "CHEONGGALCHI": {
@@ -39,8 +36,7 @@
     "role": "believer",
     "stats": {
       "friendly": 50,
-      "faith": 50,
-      "trust": 0
+      "faith": 50
     }
   },
   "GWAKBINGEO": {
@@ -50,8 +46,7 @@
     "role": "believer",
     "stats": {
       "friendly": 30,
-      "faith": 70,
-      "trust": 0
+      "faith": 70
     }
   }
 }

@@ -69,20 +69,26 @@ class GPUProxyClient:
         self,
         npc_id: str,
         message: str,
-        history: Optional[List[Dict]] = None
-    ) -> str:
+        history: Optional[List[Dict]] = None,
+        memory_context: Optional[str] = None
+    ) -> Dict:
         """
         NPC 대화 생성을 GPU 서버에 위임
 
         Returns:
-            NPC 응답 문자열
+            {
+                "response": str,        # NPC 응답 텍스트
+                "analysis": Dict,       # 의도 분석 결과 (friendly_delta, faith_delta, reason_tags 등)
+                "state": Dict           # 현재 NPC 상태 (friendly, faith)
+            }
         """
         try:
             client = await self._get_client()
             payload = {
                 "npc_id": npc_id,
                 "message": message,
-                "history": history
+                "history": history,
+                "memory_context": memory_context
             }
             response = await client.post("/infer/npc", json=payload)
             response.raise_for_status()
@@ -90,23 +96,35 @@ class GPUProxyClient:
             data = response.json()
 
             # 상태 변화 로깅
-            if data.get("analysis"):
-                analysis = data["analysis"]
-                state = data.get("state", {})
+            analysis = data.get("analysis", {})
+            state = data.get("state", {})
+            if analysis:
                 print(f"[GPUProxy] {npc_id} 응답 완료 (Remote GPU)")
                 print(f"  - 호감도: {state.get('friendly', '?')} ({analysis.get('friendly_delta', 0):+d})")
                 print(f"  - 신뢰도: {state.get('faith', '?')} ({analysis.get('faith_delta', 0):+d})")
                 tags = analysis.get('reason_tags', [])
                 print(f"  - 태그: {', '.join(tags) if tags else 'NONE'}")
 
-            return data["response"]
+            return {
+                "response": data.get("response", ""),
+                "analysis": analysis,
+                "state": state
+            }
 
         except httpx.ConnectError:
             print("⚠️ [GPUProxy] NPC: GPU 서버에 연결할 수 없습니다.")
-            return "시스템: (GPU 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.)"
+            return {
+                "response": "시스템: (GPU 서버에 연결할 수 없습니다. 서버 상태를 확인해주세요.)",
+                "analysis": {},
+                "state": {}
+            }
         except Exception as e:
             print(f"⚠️ [GPUProxy] NPC 오류: {e}")
-            return "시스템: (원격 추론 중 오류가 발생했습니다.)"
+            return {
+                "response": "시스템: (원격 추론 중 오류가 발생했습니다.)",
+                "analysis": {},
+                "state": {}
+            }
 
     # ============================================================
     # Story: 텍스트/일기 생성
@@ -167,6 +185,67 @@ class GPUProxyClient:
         except Exception as e:
             print(f"⚠️ [GPUProxy] Diary 오류: {e}")
             return "시스템: 원격 추론 중 오류가 발생했습니다."
+
+    # ============================================================
+    # NPC 대화(Conversation): 다중 NPC 대화 생성
+    # ============================================================
+
+    async def generate_npc_conversation(
+        self,
+        topic: str,
+        npc_ids: List[str],
+        include_user: bool = False,
+        user_message: Optional[str] = None,
+        num_turns: int = 5,
+        history: Optional[List[Dict]] = None
+    ) -> Dict:
+        """
+        NPC 대화 생성을 GPU 서버에 위임
+
+        Args:
+            topic: 대화 주제
+            npc_ids: 참여 NPC ID 목록
+            include_user: 유저 참여 여부
+            user_message: 유저 참여 시 유저 발언
+            num_turns: NPC-only 모드 턴 수
+            history: 이전 대화 내역
+
+        Returns:
+            {"topic": str, "turns": List[Dict], "npc_states": Dict}
+        """
+        try:
+            client = await self._get_client()
+            payload = {
+                "topic": topic,
+                "npc_ids": npc_ids,
+                "include_user": include_user,
+                "user_message": user_message,
+                "num_turns": num_turns,
+                "history": history
+            }
+            response = await client.post("/infer/npc/conversation", json=payload)
+            response.raise_for_status()
+
+            data = response.json()
+            print(f"[GPUProxy] NPC 대화 완료 (Remote GPU): {len(data.get('turns', []))} turns")
+            return data
+
+        except httpx.ConnectError:
+            print("⚠️ [GPUProxy] Conversation: GPU 서버에 연결할 수 없습니다.")
+            return {
+                "topic": topic,
+                "turns": [{"speaker": "system", "speaker_id": "system",
+                           "content": "GPU 서버에 연결할 수 없습니다.", "analysis": None}],
+                "npc_states": {}
+            }
+        except Exception as e:
+            print(f"⚠️ [GPUProxy] Conversation 오류: {e}")
+            return {
+                "topic": topic,
+                "turns": [{"speaker": "system", "speaker_id": "system",
+                           "content": f"원격 추론 중 오류: {e}", "analysis": None}],
+                "npc_states": {}
+            }
 
     # ============================================================
     # 유틸리티
