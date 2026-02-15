@@ -4,8 +4,11 @@ motor
 pymongo
 pydantic-settings
 python-dotenv
+transformers>=4.38.2
+accelerate>=0.27.2
 psutil
 pynvml
+bitsandbytes>=0.42.0
 pytest
 httpx
 pyjwt  # JWT 인증용
@@ -18,3 +21,4 @@ langchain-core
 langchain-community
 langchain-huggingface
 langchain_chroma
+sentence-transformers>=2.5.1

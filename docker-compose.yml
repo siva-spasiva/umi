@@ -14,8 +14,20 @@ services:
       - ./.env:/app/.env # Environment variables
     environment:
       - GPU_SERVER_URL=http://gpu-server:8001 # Internal Docker network address
+      - MONGODB_URL=mongodb://mongo:27017 # Override .env to use docker service name
     depends_on:
       - gpu-server
+      - mongo
+    restart: always
+
+  # 3. MongoDB
+  mongo:
+    image: mongo:latest
+    container_name: umi-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./auth_db:/data/db
     restart: always
 
   # 2. GPU Inference Server
