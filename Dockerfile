@@ -17,6 +17,13 @@ COPY requirements.txt .
 # Install Python dependencies
 # Upgrade pip first
 RUN pip install --no-cache-dir --upgrade pip
+# Install heavy ML libs separately to avoid dependency resolution too deep
+RUN pip install --no-cache-dir \
+    "transformers>=4.38.2" \
+    "accelerate>=0.27.2" \
+    "bitsandbytes>=0.42.0" \
+    "sentence-transformers>=2.5.1"
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
