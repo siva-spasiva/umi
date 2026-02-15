@@ -16,9 +16,9 @@ peft>=0.8.2
 sentencepiece
 tiktoken
 langsmith
-langchain
-langchain-core
-langchain-community
-langchain-huggingface
-langchain_chroma
+langchain==0.2.14
+langchain-core==0.2.33
+langchain-community==0.2.12
+langchain-huggingface==0.0.3
+langchain_chroma==0.1.2
 sentence-transformers>=2.5.1
