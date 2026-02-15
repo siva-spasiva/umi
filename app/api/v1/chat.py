@@ -12,8 +12,8 @@ router = APIRouter()
 
 class EndDayRequest(BaseModel):
     """하루 종료 요청"""
-    npc_id: str
     day_index: int
+    npc_id: Optional[str] = None
 
 
 @router.post("/chat", summary="NPC와 대화 (가드레일 적용)")
@@ -78,30 +78,29 @@ async def get_story_summary(day_index: int, user_id: str = Depends(get_current_u
 
 @router.post("/end-day",
              summary="하루 종료 — 세션 요약 저장",
-             description="게임 내 하루가 끝날 때 호출합니다. 해당 NPC와의 대화를 요약하여 장기 기억(Vector DB)에 저장합니다."
+             description="게임 내 하루가 끝날 때 호출합니다. NPC들의 대화를 요약하여 장기 기억(Vector DB)에 저장합니다. npc_id 생략 시 모든 NPC에 대해 수행합니다."
              )
 async def end_day(request: EndDayRequest, user_id: str = Depends(get_current_user_id)):
     """
     하루 종료 시 NPC 세션 대화를 요약하여 장기 기억에 저장합니다.
     
-    - npc_id: NPC 식별자
     - day_index: 게임 내 일차 (1~7)
+    - npc_id: NPC 식별자 (선택 사항. 생략 시 현재 세션 버퍼가 있는 모든 NPC 처리)
     """
     try:
-        summary = await llm_engine.save_session_summary(request.npc_id, request.day_index)
+        summaries = await llm_engine.save_session_summary(request.day_index, request.npc_id)
         
-        if summary is None:
+        if not summaries:
             return {
                 "status": "skipped",
-                "message": f"{request.npc_id}와의 대화가 없어 요약을 생략했습니다.",
+                "message": "대화 내역이 없어 요약을 생략했습니다.",
                 "day_index": request.day_index
             }
         
         return {
             "status": "success",
-            "npc_id": request.npc_id,
             "day_index": request.day_index,
-            "summary": summary
+            "summaries": summaries
         }
     except Exception as e:
         print(f"[ERROR] end-day: {e}")

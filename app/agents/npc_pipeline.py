@@ -183,6 +183,14 @@ class NPCPromptLoader:
         if result:
             return result[0]
         return npc_id
+    
+    def get_all_npc_ids(self) -> List[str]:
+        """NPC_prompt.json에 정의된 모든 NPC ID 목록 반환"""
+        ids = []
+        for info in self._npcs_by_korean_name.values():
+            if "id" in info:
+                ids.append(info["id"])
+        return ids
 
 
 # ============================================================

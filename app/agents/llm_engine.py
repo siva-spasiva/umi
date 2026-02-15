@@ -1,3 +1,4 @@
+import os
 import asyncio
 from typing import List, Dict, Optional
 from app.agents.npc_agent import npc_agent
@@ -28,6 +29,18 @@ class LLMEngine:
         # NPC별 세션 버퍼: {npc_id: [{"speaker": ..., "content": ..., "analysis": ...}, ...]}
         self.session_buffers: Dict[str, List[Dict]] = {}
         
+        # 전역 NPCPromptLoader 초기화 (NPC 목록 및 초기 스탯 로드용)
+        try:
+            from app.agents.npc_pipeline import NPCPromptLoader
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            char_json_path = os.path.join(base_dir, "data", "characters.json")
+            prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
+            self.loader = NPCPromptLoader(prompt_json_path, char_json_path)
+            print(f"[LLMEngine] Global NPCPromptLoader initialized. Available NPCs: {self.loader.get_all_npc_ids()}")
+        except Exception as e:
+            print(f"⚠️ [LLMEngine] Failed to init NPCPromptLoader in __init__: {e}")
+            self.loader = None
+        
         print("[LLMEngine] Initialized with pipeline architecture")
     
     def _get_or_create_pipeline(self, npc_id: str) -> NPCDialoguePipeline:
@@ -36,23 +49,16 @@ class LLMEngine:
             if not self.agent.generation_enabled:
                 raise RuntimeError("대화 생성이 비활성화되어 있습니다.")
             
-            # characters.json 경로 (npc_agent.prompt_loader가 이미 로드했으면 좋겠지만, 
-            # 여기서는 새로 생성하거나 기존 로더를 활용해야 함.
-            # 하지만 npc_agent는 구버전일 수 있음. 
-            # 안전하게 여기서 characters.json 경로를 알 수 있다면 좋음.)
-            pass
-            # 💡 NOTE: npc_agent.prompt_loader가 NPCPromptLoader 인스턴스라면 재사용 가능.
-            # 하지만 여기서는 npc_agent.analyzer 등 개별 컴포넌트를 사용 중.
-            
-            # characters.json 경로 추론
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            char_json_path = os.path.join(base_dir, "data", "characters.json")
-            prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
-            
-            # PromptLoader가 없으면 생성 (llm_engine은 npc_agent(v1)을 참조하고 있음)
-            # v2 파이프라인을 위해 새로 생성
-            from app.agents.npc_pipeline import NPCPromptLoader
-            loader = NPCPromptLoader(prompt_json_path, char_json_path)
+            # Use self.loader if available, else recreate (fallback)
+            loader = self.loader
+            if not loader:
+                # Fallback: create new loader if init failed
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                char_json_path = os.path.join(base_dir, "data", "characters.json")
+                prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
+                
+                from app.agents.npc_pipeline import NPCPromptLoader
+                loader = NPCPromptLoader(prompt_json_path, char_json_path)
 
             # 초기 상태 로드
             initial_state = loader.get_initial_state(npc_id)
@@ -227,67 +233,85 @@ class LLMEngine:
         )
         print(f"🧠 [Memory] 감정 트리거 발동! {npc_id}: friendly_delta={friendly_delta:+d} → 장기 기억 저장 완료")
 
-    async def save_session_summary(self, npc_id: str, day_index: int):
+    async def save_session_summary(self, day_index: int, npc_id: Optional[str] = None) -> Dict[str, str]:
         """
         하루(세션) 종료 시 세션 버퍼의 대화를 요약하여 장기 기억에 저장.
         클라이언트가 /end-day API를 호출할 때 트리거됨.
         
         Args:
-            npc_id: NPC 식별자
             day_index: 게임 내 일차 (1~7 등)
+            npc_id: NPC 식별자 (None이면 버퍼가 있는 모든 NPC에 대해 수행)
+            
+        Returns:
+            {npc_id: summary_text, ...}
         """
-        buffer = self.session_buffers.get(npc_id, [])
-        
-        if not buffer:
-            print(f"[Memory] {npc_id} 세션 버퍼가 비어 있습니다. 요약 생략.")
-            return None
-        
-        print(f"[Memory] {npc_id}의 Day {day_index} 세션 요약 생성 중... ({len(buffer)}턴)")
-        
-        # 세션 버퍼를 대화 형태로 변환
-        conversation_text = ""
-        for turn in buffer:
-            conversation_text += f"플레이어: {turn['user']}\n"
-            conversation_text += f"NPC({npc_id}): {turn['npc']}\n"
-            conversation_text += f"  [감정: 호감도 {turn['friendly_delta']:+d}, 신뢰도 {turn['faith_delta']:+d}]\n\n"
-        
-        # StoryAgent로 요약 생성 (GPU Proxy 모드에서는 원격 호출)
-        try:
-            if settings.USE_GPU_PROXY:
-                from app.core.gpu_proxy import gpu_proxy
-                summary = await gpu_proxy.generate_diary(
-                    messages=conversation_text,
-                    fish_level=0,
-                    max_new_tokens=400
-                )
+        if npc_id:
+            target_ids = [npc_id]
+        else:
+            # npc_id가 없으면 로더에서 전체 NPC 목록을 가져옴 (characters.json 기준)
+            if self.loader:
+                target_ids = self.loader.get_all_npc_ids()
+                print(f"[Memory] 모든 NPC({len(target_ids)}명)에 대해 세션 요약 진행")
             else:
-                summary = await asyncio.to_thread(
-                    story_agent.generate_diary,
-                    conversation_text,
-                    fish_level=0
-                )
-        except Exception as e:
-            print(f"⚠️ [Memory] 세션 요약 생성 실패: {e}")
-            # 폴백: 요약 없이 핵심 대화만 저장
-            summary = f"Day {day_index} - {npc_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
+                target_ids = list(self.session_buffers.keys())
+                
+        summaries: Dict[str, str] = {}
         
-        # Vector DB에 저장
-        memory_manager.add_memory(
-            text=summary,
-            metadata={
-                "npc_id": npc_id,
-                "memory_type": "session_summary",
-                "day_index": day_index,
-                "turn_count": len(buffer)
-            }
-        )
-        
-        print(f"🧠 [Memory] Day {day_index} 세션 요약 저장 완료 ({npc_id}, {len(buffer)}턴)")
-        
-        # 세션 버퍼 초기화
-        self.session_buffers[npc_id] = []
-        
-        return summary
+        for target_id in target_ids:
+            buffer = self.session_buffers.get(target_id, [])
+            
+            if not buffer:
+                # 버퍼가 비어있으면 스킵
+                continue
+            
+            print(f"[Memory] {target_id}의 Day {day_index} 세션 요약 생성 중... ({len(buffer)}턴)")
+            
+            # 세션 버퍼를 대화 형태로 변환
+            conversation_text = ""
+            for turn in buffer:
+                conversation_text += f"플레이어: {turn['user']}\n"
+                conversation_text += f"NPC({target_id}): {turn['npc']}\n"
+                conversation_text += f"  [감정: 호감도 {turn['friendly_delta']:+d}, 신뢰도 {turn['faith_delta']:+d}]\n\n"
+            
+            # StoryAgent로 요약 생성 (GPU Proxy 모드에서는 원격 호출)
+            try:
+                if settings.USE_GPU_PROXY:
+                    from app.core.gpu_proxy import gpu_proxy
+                    summary = await gpu_proxy.generate_diary(
+                        messages=conversation_text,
+                        fish_level=0,
+                        max_new_tokens=400
+                    )
+                else:
+                    summary = await asyncio.to_thread(
+                        story_agent.generate_diary,
+                        conversation_text,
+                        fish_level=0
+                    )
+            except Exception as e:
+                print(f"⚠️ [Memory] 세션 요약 생성 실패 ({target_id}): {e}")
+                # 폴백: 요약 없이 핵심 대화만 저장
+                summary = f"Day {day_index} - {target_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
+            
+            # Vector DB에 저장
+            memory_manager.add_memory(
+                text=summary,
+                metadata={
+                    "npc_id": target_id,
+                    "memory_type": "session_summary",
+                    "day_index": day_index,
+                    "turn_count": len(buffer)
+                }
+            )
+            
+            print(f"🧠 [Memory] Day {day_index} 세션 요약 저장 완료 ({target_id}, {len(buffer)}턴)")
+            
+            # 세션 버퍼 초기화
+            self.session_buffers[target_id] = []
+            
+            summaries[target_id] = summary
+            
+        return summaries
 
     def get_session_buffer(self, npc_id: str) -> List[Dict]:
         """세션 버퍼 조회 (디버그용)"""
