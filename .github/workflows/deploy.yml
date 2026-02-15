@@ -1,0 +1,33 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - immedient
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            # 프로젝트 폴더로 이동
+            cd ~/umi
+            
+            # 최신 코드 강제 동기화 (충돌 방지)
+            git fetch origin immedient
+            git reset --hard origin/immedient
+            
+            # Docker 컨테이너 재시작 (빌드 포함)
+            # --no-cache: 의존성 변경 사항 확실히 반영
+            docker-compose down
+            docker-compose up --build -d
+            
+            # 불필요한 이미지 정리 (디스크 공간 확보)
+            docker image prune -f
