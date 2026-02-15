@@ -8,6 +8,7 @@ psutil
 pynvml
 pytest
 httpx
+pyjwt  # JWT 인증용
 peft>=0.8.2
 sentencepiece
 tiktoken
