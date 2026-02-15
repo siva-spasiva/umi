@@ -1,4 +1,3 @@
-# [중요] 환경 변수 설정을 위해 config를 가장 먼저 임포트합니다.
 from app.core.config import settings
 from fastapi import FastAPI
 from app.api.v1.chat import router as chat_router
@@ -8,6 +7,10 @@ from app.api.v1.health_check import router as health_router
 from app.api.v1.records import router as records_router
 from app.api.v1.monitoring import router as monitoring_router
 from app.api.v1.conversation import router as conversation_router
+
+# [New] 로그 설정 (매일 자정 logs/app.log.YYYY-MM-DD 생성)
+from app.core.logger import setup_daily_rotating_logger
+setup_daily_rotating_logger("api_server", "logs/app.log", capture_uvicorn=True)
 
 app = FastAPI(title="LLM API Server")
 

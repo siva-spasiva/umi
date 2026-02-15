@@ -7,6 +7,8 @@ from app.services.chat_service import chat_service
 from app.agents.llm_engine import llm_engine
 from app.core.security import get_current_user_id
 
+from typing import Optional
+
 router = APIRouter()
 
 
