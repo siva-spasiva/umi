@@ -36,4 +36,6 @@ services:
       - ./logs:/app/logs
       - ./app/agents/NPC_model_v2:/app/app/agents/NPC_model_v2 # Mount model weights
       - ./.env:/app/.env
+    environment:
+      - GPU_SIZE=LARGE
     restart: always
