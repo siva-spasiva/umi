@@ -49,14 +49,7 @@ class StoryResponse(BaseModel):
     text: str
 
 
-class ObserverRequest(BaseModel):
-    conversation_text: str  # 분석할 대화 내용 (Context + Current Turn)
-    max_new_tokens: int = 256
 
-class ObserverResponse(BaseModel):
-    friendly: str # "+" or "-" or "0"
-    faith: str    # "+" or "-" or "0"
-    reason: Optional[str] = None # JSON 파싱 실패시 원본 텍스트 등
 
 
 
@@ -481,90 +474,7 @@ async def infer_story_diary(req: StoryDiaryRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/infer/observer", response_model=ObserverResponse)
-async def infer_observer(req: ObserverRequest):
-    """
-    Observer Agent: 대화 내용을 분석하여 스탯 변화(호감도, 신앙심)와 단서 발견 여부를 판단.
-    JSON 형식으로만 출력하도록 강제함.
-    """
-    if not model_mgr.story_tokenizer or not model_mgr.story_model:
-         raise HTTPException(status_code=503, detail="Story model (used for Observer) not loaded")
 
-    try:
-        # 1. System Prompt (핵심 전략 적용)
-        system_prompt = (
-            "너는 게임의 상태 변화를 기록하는 시스템 로그 분석가다. "
-            "아래 대화를 분석하여 [호감도, 신앙심]을 JSON 형식으로만 출력하라. "
-            "캐릭터 연기를 하지 말고, 오직 분석 결과만 내놓아라.\n\n"
-            "규칙:\n"
-            "1. 호감도(friendly): 사용자가 친화적/동조적이면 '+', 공격적/비난적이면 '-', 중립이면 '0'\n"
-            "2. 신앙심(faith): 교리에 순종/감탄하면 '+', 의심/부정하면 '-', 관련 없으면 '0'\n"
-            "3. 출력 형식: {\"friendly\": \"+\", \"faith\": \"-\"}\n"
-            "4. 군더더기 없는 순수 JSON만 출력할 것."
-        )
-
-        user_prompt = f"대화 로그:\n{req.conversation_text}\n\n분석 결과(JSON):"
-
-        # 2. Chat Template 적용
-        chat = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ]
-        
-        prompt = model_mgr.story_tokenizer.apply_chat_template(
-            chat, tokenize=False, add_generation_prompt=True
-        )
-
-        # 3. Inference
-        inputs = model_mgr.story_tokenizer(prompt, return_tensors="pt").to(model_mgr.story_model.device)
-        
-        with torch.no_grad():
-            outputs = model_mgr.story_model.generate(
-                **inputs,
-                max_new_tokens=req.max_new_tokens,
-                temperature=0.1, # 분석용이므로 낮은 온도 (결정론적)
-                top_p=0.9,
-                do_sample=False, # 욕심쟁이 탐색 (Greedy decoding) 권장 for strict output
-                repetition_penalty=1.0,
-                eos_token_id=model_mgr.story_tokenizer.eos_token_id,
-                pad_token_id=model_mgr.story_tokenizer.eos_token_id
-            )
-
-        generated_text = model_mgr.story_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        response_text = generated_text[len(prompt):].strip()
-        
-        # 4. JSON Parsing Logic
-        import json
-        import re
-        
-        # Markdown Code Block 제거 (```json ... ```)
-        cleaned_text = re.sub(r"```json", "", response_text)
-        cleaned_text = re.sub(r"```", "", cleaned_text).strip()
-        
-        try:
-            # 첫 번째 '{' 부터 마지막 '}' 까지만 추출
-            start_idx = cleaned_text.find("{")
-            end_idx = cleaned_text.rfind("}")
-            if start_idx != -1 and end_idx != -1:
-                json_str = cleaned_text[start_idx : end_idx + 1]
-                data = json.loads(json_str)
-                
-                return ObserverResponse(
-                    friendly=data.get("friendly", "0"),
-                    faith=data.get("faith", "0")
-                )
-            else:
-                 # JSON 구조를 못 찾은 경우
-                 print(f"⚠️ [Observer] JSON parsing failed (no braces): {response_text}")
-                 return ObserverResponse(friendly="0", faith="0", reason=response_text)
-
-        except json.JSONDecodeError:
-            print(f"⚠️ [Observer] JSON parsing failed: {response_text}")
-            return ObserverResponse(friendly="0", faith="0", reason=response_text)
-
-    except Exception as e:
-        print(f"[ERROR] Observer inference: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============================================================

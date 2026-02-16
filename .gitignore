@@ -39,3 +39,5 @@ app/data/init_data.py
 # ab_test_result
 /ab_test_results/*
 /npc_batch_results/*
+
+/logs
