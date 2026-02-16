@@ -20,10 +20,10 @@ venv/
 
 # Sensitive Files (User Request)
 connect_aws.sh
-app/core/config.py
+
 spsb.pem
 # EC2 전용 파일 (필요 시)
-gpu_server.py
+
 
 # Local Models & Data
 chroma_db/
