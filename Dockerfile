@@ -32,7 +32,10 @@ RUN uv pip install --system --no-cache-dir \
 RUN uv pip install --system --no-cache-dir -r requirements.txt
 
 # Copy application code
+# Copy application code
 COPY . .
+# Explicitly check/copy gpu_server.py to fail build if missing
+COPY gpu_server.py /app/gpu_server.py
 
 # Create directory for logs
 RUN mkdir -p logs
