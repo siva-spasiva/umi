@@ -30,5 +30,33 @@ class WordMasker:
                 masked_text = masked_text.replace(word, "뻐끔")
         return masked_text
 
+    def mask_randomly(self, text: str, ratio: float = 0.8) -> str:
+        """
+        텍스트의 단어 중 일정 비율(ratio)을 무작위로 '뻐끔'으로 치환
+        (단, 이미 '뻐끔'인 것은 유지)
+        """
+        if not text:
+            return ""
+
+        import random
+        
+        # 공백 기준으로 분리
+        words = text.split()
+        masked_words = []
+        
+        for word in words:
+            # 이미 마스킹된 단어('뻐끔' 포함)는 건너뛰기
+            if "뻐끔" in word:
+                masked_words.append(word)
+                continue
+                
+            # 확률적으로 마스킹
+            if random.random() < ratio:
+                masked_words.append("뻐끔")
+            else:
+                masked_words.append(word)
+                
+        return " ".join(masked_words)
+
 # Singleton instance
 word_masker = WordMasker()

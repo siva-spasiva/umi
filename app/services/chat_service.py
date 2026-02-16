@@ -19,10 +19,7 @@ class ChatService(BaseService):
     def __init__(self):
         super().__init__()
         self.collection = self.db["chat_logs"]
-        # self.forbidden_words removed, using word_masker singleton instead
-
-    # _load_forbidden_words and _mask_text methods are removed as they are now in WordMasker utility
-
+    
     @traceable(run_type="chain", name="Chat_Flow_Pipeline")
     async def process_chat_flow(self, user_id: str, npc_id: str, message: str):
         """
@@ -64,11 +61,25 @@ class ChatService(BaseService):
         llm_result = await llm_engine.ask(npc_id, message, history)
         raw_response = llm_result.get("response", "")
 
-        # [Word Masking] fish_level >= 3 일 때 금지어 마스킹
-        state = llm_result.get("state", {})
-        fish_level = state.get("fish_level", 0)
+        # [Word Masking] 
+        # 1. NPC Fish Level 확인
+        npc_state = llm_result.get("state", {})
+        npc_fish_level = npc_state.get("fish_level", 0)
         
-        if fish_level >= 3:
+        # 2. User Fish Level 확인 (DB 조회)
+        user_state = await self.db["user_states"].find_one({"user_id": user_id})
+        user_fish_level = user_state.get("fish_level", 0) if user_state else 0
+        
+        # 3. 마스킹 로직 적용
+        # 조건: NPC 레벨이 유저보다 2 이상 높을 때 -> Heavy Masking (금기어 + 랜덤 80%)
+        if npc_fish_level - user_fish_level >= 2:
+            # 1단계: 금기어 마스킹 (100% 차단)
+            raw_response = word_masker.mask_text(raw_response)
+            # 2단계: 남은 단어 80% 랜덤 마스킹
+            raw_response = word_masker.mask_randomly(raw_response, ratio=0.8)
+            
+        # 조건: 그 외 NPC 생선화 3단계 이상 -> 일반 마스킹 (금기어만)
+        elif npc_fish_level >= 3:
             raw_response = word_masker.mask_text(raw_response)
 
         # 4. Output Guardrail (페르소나 체크 등)
