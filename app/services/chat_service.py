@@ -11,10 +11,17 @@ from app.agents.guardrail import ga_agent
 
 from langsmith import traceable
 
+import json
+import os
+from app.core.masking_utils import word_masker
+
 class ChatService(BaseService):
     def __init__(self):
         super().__init__()
         self.collection = self.db["chat_logs"]
+        # self.forbidden_words removed, using word_masker singleton instead
+
+    # _load_forbidden_words and _mask_text methods are removed as they are now in WordMasker utility
 
     @traceable(run_type="chain", name="Chat_Flow_Pipeline")
     async def process_chat_flow(self, user_id: str, npc_id: str, message: str):
@@ -56,6 +63,13 @@ class ChatService(BaseService):
         # 3. LLM Generation (Dict 반환: response + analysis + state)
         llm_result = await llm_engine.ask(npc_id, message, history)
         raw_response = llm_result.get("response", "")
+
+        # [Word Masking] fish_level >= 3 일 때 금지어 마스킹
+        state = llm_result.get("state", {})
+        fish_level = state.get("fish_level", 0)
+        
+        if fish_level >= 3:
+            raw_response = word_masker.mask_text(raw_response)
 
         # 4. Output Guardrail (페르소나 체크 등)
         is_output_safe, final_response = await ga_agent.validate_output(raw_response)
