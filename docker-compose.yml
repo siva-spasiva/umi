@@ -20,6 +20,18 @@ services:
       - mongo
     restart: always
 
+  # 4. Nginx Reverse Proxy
+  nginx:
+    image: nginx:latest
+    container_name: umi-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - api-server
+    restart: always
+
   # 3. MongoDB
   mongo:
     image: mongo:latest
