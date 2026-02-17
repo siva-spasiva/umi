@@ -53,7 +53,7 @@ class DayLog(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     npcId: str
-    userId: Optional[str] = "user_dev_session"
+    item_id: Optional[str] = None
 
 class ChatResponse(BaseModel):
     response: str

@@ -23,7 +23,7 @@ async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current
     """
     GA 에이전트가 입력과 출력을 검증하는 채팅 API입니다.
     """
-    result = await chat_service.process_chat_flow(user_id, request.npcId, request.message)
+    result = await chat_service.process_chat_flow(user_id, request.npcId, request.message, request.item_id)
     
     if result.get("status") == "blocked_by_guardrail":
         return {"response": result["response"], "blocked": True}

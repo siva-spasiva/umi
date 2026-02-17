@@ -40,4 +40,17 @@ class InventoryService(BaseService):
         )
         return True
 
+    async def get_item_info(self, item_id: str) -> Optional[Dict[str, Any]]:
+        """아이템 상세 정보를 DB에서 조회합니다."""
+        return await self.db["items"].find_one({"_id": item_id})
+
+    async def check_item_ownership(self, user_id: str, item_id: str) -> bool:
+        """유저가 해당 아이템을 보유(True)하고 있는지 확인합니다."""
+        inventory = await self.db["inventories"].find_one({"user_id": user_id})
+        if not inventory:
+            return False
+            
+        # 보유하고 있고(True), 사용완료(False)되지 않은 상태여야 함
+        return inventory.get("items", {}).get(item_id, False) is True
+
 inventory_service = InventoryService()

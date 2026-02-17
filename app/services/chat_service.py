@@ -15,16 +15,38 @@ import json
 import os
 from app.core.masking_utils import word_masker
 
+from app.services.inventory_service import inventory_service
+
 class ChatService(BaseService):
     def __init__(self):
         super().__init__()
         self.collection = self.db["chat_logs"]
     
     @traceable(run_type="chain", name="Chat_Flow_Pipeline")
-    async def process_chat_flow(self, user_id: str, npc_id: str, message: str):
+    async def process_chat_flow(self, user_id: str, npc_id: str, message: str, item_id: str = None):
         """
         GA1 -> GA2 -> LLM -> Output Guardrail 파이프라인
         """
+        # [Item Usage Logic]
+        system_injection = ""
+        if item_id:
+            # 1. 소유 확인
+            has_item = await inventory_service.check_item_ownership(user_id, item_id)
+            if has_item:
+                # 2. 아이템 정보 조회
+                item_info = await inventory_service.get_item_info(item_id)
+                if item_info:
+                    item_name = item_info.get("name", "Unknown Item")
+                    # 3. 프롬프트 주입
+                    system_injection = f"\n[System] User uses item: {item_name}"
+                    
+                    # 4. 소모품 처리 (consumable=True인 경우)
+                    if item_info.get("consumable") is True:
+                        await inventory_service.use_item(user_id, item_id)
+                        system_injection += " (The item has been consumed)"
+            else:
+                print(f"⚠️ [Chat] User {user_id} tried to use item {item_id} but does not own it.")
+
         # 0. Basic Guardrail: 기본 규칙 검증 (길이, 금지어 등)
         is_basic_safe, basic_msg = await ga_agent.validate_input(message)
         if not is_basic_safe:
@@ -58,7 +80,9 @@ class ChatService(BaseService):
         #     return {"response": context_msg, "status": "blocked_by_ga2"}
 
         # 3. LLM Generation (Dict 반환: response + analysis + state)
-        llm_result = await llm_engine.ask(npc_id, message, history)
+        # 아이템 사용 문구가 있으면 메시지 뒤에 추가하여 LLM에 전달
+        full_message = message + system_injection
+        llm_result = await llm_engine.ask(npc_id, full_message, history)
         raw_response = llm_result.get("response", "")
 
         # [Word Masking] 

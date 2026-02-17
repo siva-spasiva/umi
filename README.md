@@ -7,12 +7,15 @@ Umi는 게임 캐릭터와의 대화, 스탯 관리, 스토리 진행을 추적�
 - **대화 로그 관리**: 게임 내 NPC와의 대화 내용을 일자별로 저장
 - **스토리 요약**: LLM 기반 대화 요약 및 분석 결과 저장
 - **가드레일 시스템**: 유저 입력의 안전성(GA1) 및 세계관 문맥 적합성(GA2) 검증
+- **단어 마스킹 시스템**: 
+  - **일반 마스킹**: NPC FishLevel >= 3 일 때 금지어 필터링
+  - **강력 마스킹**: (NPC FishLevel - User FishLevel) >= 2 일 때 금지어 + 랜덤 단어 80% 마스킹
 - **스탯 시스템**: 캐릭터 및 NPC의 스탯(HP, 친밀도, 신뢰도 등) 관리
-- **인벤토리 시스템**: 아이템 획득, 사용 및 대화 녹음 파일 관리
-- **JWT 인증**: 보안이 적용된 API 엔드포인트
+- **인벤토리 시스템**: 아이템 획득, 사용(소모품 자동 처리) 및 대화 녹음 파일 관리
+- **JWT 인증**: 보안이 적용된 API 엔드포인트 (Login / Init 분리)
 - **헬스 체크**: 서버 상태 모니터링
 - **리소스 모니터링**: CPU, RAM, GPU(VRAM) 상태 실시간 대시보드 제공
-- **데이터 생성 도구**: 페르소나 학습을 위한 SFT 데이터 대량 생성 스크립트 제공
+- **데이터 자동 초기화**: 서버 실행 시 캐릭터, 아이템 정보 자동 DB 동기화
 
 ## 📁 프로젝트 구조
 
@@ -23,20 +26,25 @@ umi-backend/
 │   ├── main.py                 # FastAPI 애플리케이션 진입점
 │   ├── api/
 │   │   └── v1/
-│   │       ├── chat.py         # 대화 로그 및 스토리 요약 API
+│   │       ├── user.py         # 로그인 및 토큰 관리 API
+│   │       ├── chat.py         # 대화 로그, 스토리 요약, 아이템 사용 API
 │   │       ├── health_check.py # 헬스 체크 API
-│   │       └── stats.py        # 스탯 관리 API
+│   │       └── stats.py        # 스탯 관리 및 초기화 API
 │   ├── core/
 │   │   ├── config.py          # 환경 설정
-│   │   └── security.py        # JWT 인증 로직
+│   │   ├── security.py        # JWT 인증 로직
+│   │   └── masking_utils.py   # 단어 마스킹 유틸리티
 │   ├── data/
-│   │   └── characters.json    # 캐릭터 데이터
+│   │   ├── characters.json    # 캐릭터 데이터
+│   │   ├── items.json         # 아이템 데이터
+│   │   └── init_data.py       # 데이터 초기화 스크립트
 │   ├── schemas/
 │   │   ├── chat.py           # 대화 로그 스키마
 │   │   ├── stats.py          # 스탯 스키마
 │   │   └── story.py          # 스토리 요약 스키마
 │   └── services/
 │       ├── chat_service.py    # 대화 및 스토리 비즈니스 로직
+│       ├── user_service.py    # 유저 인증 로직
 │       ├── health_service.py  # 헬스 체크 서비스
 │       └── stats_service.py   # 스탯 관리 비즈니스 로직
 ├── Dockerfile
@@ -92,6 +100,12 @@ GA1_MODEL_PATH=beomi/kcbert-base # GA1 모델 ID 또는 경로
 
 ## 🚀 실행 방법
 
+### 데이터 초기화 (선택)
+서버 실행 시 자동으로 수행되지만, 수동으로 데이터를 갱신하려면:
+```bash
+python -m app.data.init_data
+```
+
 ### 개발 서버 실행
 
 ```bash
@@ -106,22 +120,24 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 ## 📡 API 엔드포인트
 
-### 헬스 체크
+### 유저 인증 (Auth)
+- `POST /api/v1/users/login` - 익명 로그인 (토큰 발급)
+- `POST /api/v1/users/refresh` - 토큰 갱신
 
+### 헬스 체크
 - `GET /api/v1/health` - 서버 상태 확인
 
 ### 대화 로그 관리
-
+- `POST /api/v1/chat` - NPC와 대화 (아이템 사용 가능)
 - `POST /api/v1/save-log` - 대화 로그 저장
 - `POST /api/v1/summary` - 대화 요약 저장
 - `GET /api/v1/summary/{day_index}` - 특정 일자 요약 조회
 
 ### 스탯 관리
-
+- `GET /api/v1/stats/static` - 초기 스탯 설정 (로그인 토큰 필요)
 - `GET /api/v1/stats` - 현재 스탯 조회
 - `POST /api/v1/stats` - 스탯 업데이트
 - `POST /api/v1/stats/NPC` - NPC 스탯 업데이트
-- `GET /api/v1/stats/static` - 초기 스탯 설정
 
 ## 📊 데이터 모델
 
