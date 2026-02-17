@@ -11,8 +11,7 @@ class FirstStatsResponse(BaseModel):
     hp: int = Field(..., description="초기 체력")
     friendly: int = Field(..., description="초기 유저 친밀도")
     trust : int = Field(..., description="초기 신뢰도")
-    token : str = Field(..., description="발급된 Access Token")
-    refresh_token: str = Field(..., description="발급된 Refresh Token")
+    trust : int = Field(..., description="초기 신뢰도")
 
 class StatsResponse(BaseModel):
     fishLevel: int = Field(..., description="현재 물고기 레벨")

@@ -15,23 +15,7 @@ class StatsService(BaseService):
         self.collection_token = self.db["tokens"]
         self.collection_npc = self.db["npc"]
 
-    async def refresh_session_token(self, refresh_token: str):
-        """리프레시 토큰을 검증하고 새로운 액세스 토큰을 발급합니다."""
-        user_id = verify_token(refresh_token)
-        if not user_id:
-            return None
 
-        user_data = await self.collection_token.find_one({"user_id": user_id})
-        if not user_data:
-            return None
-
-        new_access_token = create_access_token(user_id)
-
-        return {
-            "access_token": new_access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer"
-        }
 
     async def get_current_stats(self, user_id: str):
         stats = await self.collection_token.find_one({"user_id": user_id})
@@ -63,12 +47,10 @@ class StatsService(BaseService):
 
         return await self.get_current_NPC_stats(user_id, npc_id)
 
-    async def static_stats(self):
+    async def static_stats(self, user_id: str):
         ''' 유저 스탯 생성 '''
-        user_id = str(uuid.uuid4())
-        token = create_access_token(user_id)
-        refresh_token = create_refresh_token(user_id)
-
+        # user_id is passed from controller (extracted from token)
+        
         initial_stats = {
             "user_id": user_id,
             "fishLevel": 0,
@@ -91,7 +73,7 @@ class StatsService(BaseService):
         })
 
         return {
-            "fishLevel": 0, "hp": 100, "friendly": 50, "token": token, "refresh_token": refresh_token, "trust": 0
+            "fishLevel": 0, "hp": 100, "friendly": 50, "trust": 0
         }
         
     async def insert_initial_npc_stats(self, user_id: str):

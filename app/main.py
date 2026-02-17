@@ -1,5 +1,6 @@
 from app.core.config import settings
 from fastapi import FastAPI
+from app.api.v1.user import router as user_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.stats import router as stats_router
 from app.api.v1.inventory import router as inventory_router
@@ -14,6 +15,7 @@ setup_daily_rotating_logger("api_server", "logs/app.log", capture_uvicorn=True)
 
 app = FastAPI(title="LLM API Server")
 
+app.include_router(user_router, prefix="/api/v1", tags=["user"])
 app.include_router(health_router, prefix="/api/v1", tags=["system"]) # 헬스체크 등록
 app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
 app.include_router(stats_router, prefix="/api/v1", tags=["stats"])

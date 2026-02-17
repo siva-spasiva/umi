@@ -29,19 +29,9 @@ async def update_NPC_stats(data: NPCStatsUpdate, user_id: str = Depends(get_curr
 
 @router.get("/stats/static", response_model=FirstStatsResponse,
             summary="초기 게임 세션 생성",
-            description="새로운 유저 ID를 생성하고, 기본 스탯 및 NPC 스탯, 초기 인벤토리(001-003 보유)를 설정한 뒤 인증 토큰을 발급합니다."
+            description="인증된 유저 ID로 초기 스탯 및 NPC 스탯, 초기 인벤토리를 설정합니다. (토큰 발급 X)"
             )
-async def static_stats():
-    return await stats_service.static_stats()
+async def static_stats(user_id: str = Depends(get_current_user_id)):
+    return await stats_service.static_stats(user_id)
 
-@router.post("/refresh", response_model=TokenResponse,
-             summary="토큰 재발급",
-             description="만료된 Access Token을 대신하여 **유효한(만료되지 않은)** Refresh Token으로 새로운 Access Token을 발급받습니다.",
-             responses={
-                 401: {"description": "유효하지 않거나 만료된 리프레시 토큰"}
-             })
-async def refresh_token(data: RefreshTokenRequest):
-    res = await stats_service.refresh_session_token(data.refresh_token)
-    if not res:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="유효하지 않은 리프레시 토큰입니다.")
-    return res
+# refresh_token endpoint removed (moved to user.py)
