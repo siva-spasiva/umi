@@ -136,11 +136,11 @@ class ModelManager:
             gpu_size = os.getenv("GPU_SIZE", "SMALL").upper()
             
             if gpu_size == "LARGE":
-                # A10G 이상 (24GB+ VRAM): Gemma 2 9B (4-bit Quantization)
-                base_model_id = "google/gemma-2-9b-it"
-                use_adapter = False # Gemma용 어댑터가 없다면 False
-                use_4bit = True
-                print(f"🚀 [Story] GPU_SIZE=LARGE detected. Using Gemma 2 9B (4-bit).")
+                # A10G 이상 (24GB+ VRAM): Qwen 2.5 7B
+                base_model_id = "Qwen/Qwen2.5-7B-Instruct"
+                use_adapter = False 
+                use_4bit = True # 7B는 4bit 없이도 T4 2개나 A10G에 올라가지만 Safe하게 유지
+                print(f"🚀 [Story] GPU_SIZE=LARGE detected. Using {base_model_id}.")
             else:
                 # T4 (16GB VRAM): Gemma 2 2B (float16) - 빠르고 가벼움
                 base_model_id = "google/gemma-2-2b-it"
