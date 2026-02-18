@@ -112,9 +112,6 @@ class ChatService(BaseService):
         # LLM 결과 검증 및 분석 데이터 추출
         analysis = llm_result.get("analysis", {})
         
-
-        
-
         
         # 실제 DB 업데이트는 호출하는 쪽(router)이나 여기서 수행 가능
         # 현재 구조상 반환값에 포함시켜 router에서 처리하거나,

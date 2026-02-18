@@ -90,7 +90,7 @@ async def end_day(request: EndDayRequest, user_id: str = Depends(get_current_use
     - npc_id: NPC 식별자 (선택 사항. 생략 시 현재 세션 버퍼가 있는 모든 NPC 처리)
     """
     try:
-        summaries = await llm_engine.save_session_summary(request.day_index, request.npc_id)
+        summaries = await llm_engine.save_day_summary(request.day_index, request.npc_id, user_id)
         
         if not summaries:
             return {

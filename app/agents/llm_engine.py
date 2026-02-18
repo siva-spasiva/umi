@@ -10,6 +10,8 @@ from langsmith import traceable
 # 메모리 및 스토리 에이전트 추가
 from app.core.memory import memory_manager
 from app.agents.story_agent import story_agent
+from app.core.database import db
+from datetime import datetime
 
 # 감정 변화 즉시 기억 트리거 임계값
 EMOTION_TRIGGER_THRESHOLD = 3
@@ -233,14 +235,16 @@ class LLMEngine:
         )
         print(f"🧠 [Memory] 감정 트리거 발동! {npc_id}: friendly_delta={friendly_delta:+d} → 장기 기억 저장 완료")
 
-    async def save_session_summary(self, day_index: int, npc_id: Optional[str] = None) -> Dict[str, str]:
+    async def save_day_summary(self, day_index: int, npc_id: Optional[str] = None, user_id: str = None) -> Dict[str, str]:
         """
-        하루(세션) 종료 시 세션 버퍼의 대화를 요약하여 장기 기억에 저장.
-        클라이언트가 /end-day API를 호출할 때 트리거됨.
+        하루(세션) 종료 시 세션 버퍼의 대화를 요약하여:
+        1. Vector DB에 저장 (장기 기억용)
+        2. MongoDB 'day_summaries' 컬렉션에 저장 (모니터링용)
         
         Args:
             day_index: 게임 내 일차 (1~7 등)
             npc_id: NPC 식별자 (None이면 버퍼가 있는 모든 NPC에 대해 수행)
+            user_id: 유저 식별자 (모니터링 저장용 필수)
             
         Returns:
             {npc_id: summary_text, ...}
@@ -293,18 +297,33 @@ class LLMEngine:
                 # 폴백: 요약 없이 핵심 대화만 저장
                 summary = f"Day {day_index} - {target_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
             
-            # Vector DB에 저장
+            # 1. Vector DB에 저장 (Memory)
             memory_manager.add_memory(
                 text=summary,
                 metadata={
                     "npc_id": target_id,
-                    "memory_type": "session_summary",
+                    "memory_type": "day_summary",
                     "day_index": day_index,
                     "turn_count": len(buffer)
                 }
             )
             
-            print(f"🧠 [Memory] Day {day_index} 세션 요약 저장 완료 ({target_id}, {len(buffer)}턴)")
+            # 2. MongoDB에 저장 (Log/Monitoring)
+            if user_id:
+                try:
+                    await db["day_summaries"].insert_one({
+                        "user_id": user_id,
+                        "day_index": day_index,
+                        "npc_id": target_id,
+                        "summary": summary,
+                        "full_conversation": conversation_text, # 전체 대화도 백업
+                        "timestamp": datetime.utcnow()
+                    })
+                    print(f"✅ [DB] Day Summary 저장 완료 ({target_id})")
+                except Exception as e:
+                    print(f"⚠️ [DB] Day Summary 저장 실패: {e}")
+
+            print(f"🧠 [Memory] Day {day_index} 세션 요약 처리 완료 ({target_id}, {len(buffer)}턴)")
             
             # 세션 버퍼 초기화
             self.session_buffers[target_id] = []
