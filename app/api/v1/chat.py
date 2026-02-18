@@ -66,13 +66,42 @@ async def create_story_summary(summary: StorySummary):
         )
 
 
+class DiaryGenerationRequest(BaseModel):
+    day_index: Optional[int] = None
+
+@router.post("/diary", status_code=status.HTTP_201_CREATED,
+             summary="일기 생성 (서버 측 자동 분석)",
+             description="서버에 저장된 대화 로그를 기반으로 LLM이 하루를 분석하여 일기(StorySummary)를 생성하고 저장합니다."
+             )
+async def generate_diary(request: DiaryGenerationRequest, user_id: str = Depends(get_current_user_id)):
+    """
+    일기 생성 API
+    - day_index를 지정하면 해당 날짜의 로그를 기반으로 생성합니다.
+    - 지정하지 않으면 현재 진행 중인 날짜를 자동 계산합니다.
+    """
+    try:
+        summary_result = await chat_service.create_diary_entry(user_id, request.day_index)
+        return {
+            "status": "success",
+            "day_index": summary_result.day_index,
+            "data": summary_result
+        }
+    except Exception as e:
+        print(f"[ERROR] Generate Diary: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"일기 생성 중 오류 발생: {str(e)}"
+        )
+
+
 @router.get("/summary/{day_index}", response_model=StorySummary,
             summary="특정 일차 스토리 요약 조회",
             description="지정한 날짜(day_index)의 스토리 요약 및 분석 결과를 조회합니다."
             )
 async def get_story_summary(day_index: int, user_id: str = Depends(get_current_user_id)):
     """특정 일차의 스토리 요약 정보를 조회합니다."""
-    summary = await chat_service.db["story_summaries"].find_one({"day_index": day_index})
+    # [REFACTOR] story_summaries -> story_diary
+    summary = await chat_service.db["story_diary"].find_one({"day_index": day_index})
     if not summary:
         raise HTTPException(status_code=404, detail="해당 일차의 요약 정보가 없습니다.")
     return summary

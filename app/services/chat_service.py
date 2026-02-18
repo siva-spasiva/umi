@@ -126,11 +126,13 @@ class ChatService(BaseService):
             "state": llm_result.get("state") # state는 현재 스냅샷이므로 유지하되, 다음 턴에 반영됨
         }
 
-    async def _get_recent_history(self, user_id: str, npc_id: str, limit: int = 5):
-        """DB에서 해당 유저와 NPC의 최근 대화 내역을 가져옵니다."""
-        cursor = self.collection.find(
-            {"conversation.participants.name": {"$in": [user_id, npc_id]}}
-        ).sort("_id", -1).limit(limit)
+    async def _get_recent_history(self, user_id: str, npc_id: str = None, limit: int = 5):
+        """DB에서 해당 유저와 NPC의 최근 대화 내역을 가져옵니다. npc_id가 없으면 전체 대화."""
+        query = {"conversation.participants.name": user_id}
+        if npc_id:
+            query["conversation.participants.name"]["$in"] = [user_id, npc_id]
+        
+        cursor = self.collection.find(query).sort("_id", -1).limit(limit)
         
         logs = await cursor.to_list(length=limit)
         history = []
@@ -153,13 +155,64 @@ class ChatService(BaseService):
         return str(result.inserted_id)
 
     # 기존 ChatService 내부에 추가
+    async def create_diary_entry(self, user_id: str, day_index: int = None):
+        """
+        하루 동안의 모든 대화 로그를 기반으로 StorySummary(일기 등)를 생성하여 저장
+        """
+        from app.agents.story_agent import story_agent
+        
+        # 1. Day Index 자동 감지 (입력되지 않은 경우)
+        if day_index is None:
+            day_index = await self._get_current_day_index(user_id)
+            # 현재 진행 중인 날짜는 아직 끝나지 않았을 수 있으므로 주의. 
+            # 보통 end_day 시점이나 summary 요청 시점이므로 현재 날짜가 맞음.
+        
+        # 2. 해당 날짜에 대한 모든 Chat Logs 조회
+        # chat_logs 구조: { ..., "day_index": 1, ... } (스키마 확인 필요)
+        # 현재 DayLog 스키마에는 day_index 필드가 없음. (timestamp만 있음)
+        # TODO: DayLog에 day_index를 추가하거나, timestamp로 필터링해야 함.
+        # 일단은 모든 로그를 가져와서 day_index를 추정하거나, user_states를 참고?
+        # 임시로 '가장 최근 50개 대화'를 가져온다고 가정하거나, 
+        # DayLog 저장 시 day_index를 넣도록 수정해야 완벽함.
+        # 여기서는 "해당 유저의 모든 로그" 중 가장 최근 것들을 가져와 LLM에게 판단 맡기거나,
+        # API에서 day_index를 받아도 DB에 없으면 필터링 불가.
+        # -> 일단 최근 대화 30턴을 가져와서 요약한다고 가정. (프로토타입)
+        
+        history = await self._get_recent_history(user_id, npc_id=None, limit=50) 
+        # _get_recent_history는 npc_id=None이면 전체를 가져오도록 수정 필요.
+        # 현재 구현은 npc_id 필수 아님? -> _get_recent_history 서명: (user_id, npc_id, limit)
+        
+        # 로그 텍스트 변환
+        messages_text = ""
+        for h in history:
+            messages_text += f"[{h['speaker']}]: {h['content']}\n"
+            
+        # 3. LLM 호출 (StoryAgent)
+        summary_data_dict = story_agent.generate_diary_summary(messages_text, day_index)
+        
+        if "error" in summary_data_dict:
+            raise Exception(f"Failed to generate diary: {summary_data_dict['error']}")
+            
+        # 4. 저장 (StorySummary 객체 변환 후)
+        # 딕셔너리를 바로 저장해도 되지만 검증을 위해 변환
+        try:
+            summary_obj = StorySummary(**summary_data_dict)
+            await self.save_story_summary(summary_obj)
+            return summary_obj
+        except Exception as e:
+            print(f"[ChatService] Validation Failed: {e}")
+            # 검증 실패해도 일단 raw dict로 저장하거나 에러 반환
+            # 여기서는 에러 반환
+            raise e
+
     async def save_story_summary(self, summary_data: StorySummary):
         """LLM이 생성한 스토리 요약 및 분석 결과를 저장"""
         # model_dump(by_alias=True)를 사용해야 'with' 필드가 제대로 저장됩니다.
         doc = summary_data.model_dump(by_alias=True)
 
         # 중복 저장 방지 (day_index 기준 upsert)
-        result = await self.db["story_summaries"].update_one(
+        # [REFACTOR] story_summaries -> story_diary
+        result = await self.db["story_diary"].update_one(
             {"day_index": doc["day_index"]},
             {"$set": doc},
             upsert=True
@@ -201,7 +254,8 @@ class ChatService(BaseService):
             return user_state["day_index"]
             
         # 2. 없다면 StorySummary(회고록)에서 가장 최근 날짜 조회
-        latest_summary = await self.db["story_summaries"].find_one(
+        # [REFACTOR] story_summaries -> story_diary
+        latest_summary = await self.db["story_diary"].find_one(
             sort=[("day_index", -1)] # TODO: user_id 필드가 story_summaries에 있다면 필터 추가 필요
         )
         if latest_summary:

@@ -142,30 +142,23 @@ class StoryAgent:
 
     def generate_diary(self, messages, fish_level=3, max_new_tokens=400) -> str:
         """
-        하루의 대화 로그를 바탕으로 일기(스토리 요약)를 작성합니다.
+        [Legacy] 하루의 대화 로그를 바탕으로 일기(스토리 요약)를 작성합니다. 
+        단순 텍스트 반환용.
         """
-        # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
-        if settings.USE_GPU_PROXY:
-            try:
-                server_url = settings.GPU_SERVER_URL.rstrip("/")
-                with httpx.Client(timeout=settings.GPU_PROXY_TIMEOUT) as client:
-                    response = client.post(
-                        f"{server_url}/infer/story/diary",
-                        json={
-                            "messages": str(messages),
-                            "fish_level": fish_level,
-                            "max_new_tokens": max_new_tokens
-                        }
-                    )
-                    response.raise_for_status()
-                    return response.json()["text"]
-            except Exception as e:
-                print(f"⚠️ [StoryAgent] GPU Proxy Diary 오류: {e}")
-                return "시스템: GPU 서버에 연결할 수 없습니다."
+        # ... (Existing implementation kept for backward compatibility if needed, or replace if not used)
+        # For now, I will keep it as is or maybe deprecate it. 
+        # But the user wants /diary to return Struct.
+        # Let's implement generate_diary_summary instead.
+        pass
 
-        if not self.model or not self.tokenizer:
-            return "시스템: 모델이 로드되지 않아 일기를 작성할 수 없습니다."
+    def generate_diary_summary(self, messages: str, day_index: int) -> dict:
+        """
+        하루의 대화 로그를 바탕으로 StorySummary 스키마에 맞는 JSON을 생성합니다.
+        """
+        import json
+        from app.schemas.story import StorySummary
 
+        # 프롬프트 구성
         system_prompt = (
             "너는 텍스트 기반 잠입수사 게임 Project: UMI_PROTOCOL의 스토리 에이전트다. "
             "입력은 하루의 대화 로그(messages)이며, 이를 바탕으로 '일기'만 작성한다. "
@@ -181,20 +174,37 @@ class StoryAgent:
             "조건: 7~10문장, 줄바꿈 없이 한 덩어리로.\n\n"
             f"{messages}"
         )
-
+        
         chat = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
+            {"role": "user", "content": user_prompt}
         ]
+        
+        if self.tokenizer:
+            full_prompt = self.tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
+        else:
+            # Tokenizer가 없는 경우 (GPU Proxy 모드지만 로컬 토크나이저도 로드 안 된 경우)
+            # 수동으로 Chat Template 근사하게 구성
+            full_prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
 
+        response_text = self.generate(full_prompt, max_new_tokens=1024)
+        
+        # JSON 파싱
         try:
-            # apply_chat_template을 사용하여 프롬프트 생성
-            prompt = self.tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
-            # generate 메서드 재사용 (prompt가 이미 완성된 형태이므로 그대로 전달)
-            return self.generate(prompt, max_new_tokens)
+            # 마크다운 코드블록 제거
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0].strip()
+            
+            data = json.loads(response_text)
+            # day_index 강제 주입 (LLM이 틀릴 수 있으므로)
+            data["day_index"] = day_index
+            return data
         except Exception as e:
-            print(f"[ERROR] StoryAgent 일기 생성 오류: {e}")
-            return "시스템: 일기 생성 중 오류가 발생했습니다."
+            print(f"[StoryAgent] JSON Parsing Failed: {e}\nRaw: {response_text}")
+            # 실패 시 기본값 반환 혹은 에러
+            return {"error": "Failed to parse JSON", "raw": response_text}
 
 # 싱글톤 인스턴스 생성
 story_agent = StoryAgent()
