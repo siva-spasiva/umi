@@ -400,11 +400,20 @@ def sanitize_npc_response(text: str) -> str:
     # 코드 블록 제거
     text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
     
-    # 마크다운 헤더 제거
-    text = re.sub(r"^###.*$", "", text, flags=re.MULTILINE)
+    # Stop Tokens / Hallucination Cutting
+    for stop_word in ["<end_of_turn>", "<start_of_turn>", "<eos>", "User:", "Model:", "user:", "model:"]:
+        if stop_word in text:
+            text = text.split(stop_word)[0]
+            
+    # Remove Leaked Control Signals (e.g., (DEFLECT/GASLIGHT))
+    text = re.sub(r"\([A-Z_]+(?:/[A-Z_]+)*\)", "", text)
     
-    # 태그 제거
-    text = re.sub(r"\[(NPC|플레이어|청갈치|user)\]", "", text, flags=re.IGNORECASE)
+    # Remove Markdown headers/bold
+    text = re.sub(r"^###.*$", "", text, flags=re.MULTILINE)
+    text = re.sub(r"\*\*.*?\*\*", "", text) # Remove bold wrapping if any
+    
+    # Remove Tags
+    text = re.sub(r"\[(NPC|Player|User|System|Model|CheongGalchi)\]", "", text, flags=re.IGNORECASE)
     
     # 선택지 패턴 제거
     text = re.sub(r"^\d+\.\s+.*$", "", text, flags=re.MULTILINE)
@@ -426,7 +435,17 @@ def sanitize_npc_response(text: str) -> str:
         r"\U00002B50\U00002B55"      # Stars
         r"]+", "", text
     )
-    
+
+    # [CRITICAL] Foreign Language Filter (Chinese Hallucination Fix)
+    # If the text contains Chinese characters (common Gemma issue), cut off the text OR remove them.
+    # Pattern: Korean sentence... followed by Chinese text.
+    if re.search(r"[\u4e00-\u9fff]", text):
+        # Strategy: Find the first Chinese character and cut off everything after it (assuming it's hallucination start)
+        match = re.search(r"[\u4e00-\u9fff]", text)
+        if match:
+            print(f"[Sanitize] Detected Chinese characters. Truncating response at index {match.start()}.")
+            text = text[:match.start()].strip()
+            
     # 연속된 줄바꿈 정리
     text = re.sub(r"\n{3,}", "\n\n", text)
     
@@ -448,11 +467,11 @@ def format_control_signal(
 REASON_TAGS={tag_str}
 PREDICTED_DELTA friendly={friendly_delta:+d}, faith={faith_delta:+d}
 
-지도:
-- WITHDRAW_TRUST가 있으면: 더 경계/거리두기/반문 강화.
-- BUILD_TRUST가 있으면: 거래 제안/협력 가능성은 열어두기.
-- DEFLECT/GASLIGHT/TEST_BOUNDARY/INCREASE_SUSPICION가 있으면: 즉답 회피 + 떠보기.
-- PROTECT_SECRET/PROTECT_DOCTRINE가 있으면: 핵심은 숨기고 연결 힌트로.
+GUIDANCE:
+- If WITHDRAW_TRUST: Strengthen suspicion/distancing/counter-questioning.
+- If BUILD_TRUST: Keep possibility of trade proposal/cooperation open.
+- If DEFLECT/GASLIGHT/TEST_BOUNDARY/INCREASE_SUSPICION: Avoid direct answers + Test the other.
+- If PROTECT_SECRET/PROTECT_DOCTRINE: Hide core info and provide only hints.
 """
     return signal.strip()
 

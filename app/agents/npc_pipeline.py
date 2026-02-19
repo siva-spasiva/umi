@@ -1,13 +1,17 @@
 """
-NPC 대화 통합 파이프라인 (v2)
+NPC 대화 통합 파이프라인 (v2 Enhanced + Dynamic Persona RAG)
 - IntentAnalyzer (per-tag threshold + top-k) + LangChain LLM 결합
-- NPC_prompt.json 기반 동적 페르소나 로딩 (4단계: BAD/NORMAL/GOOD/PERFECT)
-- RAG 기반 세계관 지식 검색
+- NPC_prompt.json 기반 동적 페르소나 로딩
+  - Core (정적): PERSONALITY, SPEECH_STYLE → 항상 포함
+  - Dynamic (RAG): BEHAVIOR_RULES, INFO_POLICY → 메타데이터 필터 + 유사도 검색
+- RAG (World Lore) 기반 세계관 지식 검색 (SentenceTransformer + Numpy)
 """
 
 import os
+import re
 import json
-from typing import Dict, Any, Optional, Type, List
+from dataclasses import dataclass, field
+from typing import Dict, Any, Optional, Type, List, Tuple, Callable
 from app.agents.npc_dialogue_engine import (
     IntentAnalyzer, 
     NPCState,
@@ -20,195 +24,346 @@ from app.agents.npc_dialogue_engine import (
 from langchain_core.runnables import Runnable
 from langchain_core.prompts import ChatPromptTemplate, PromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.retrievers import BaseRetriever
+
+# RAG 관련
+try:
+    import numpy as np
+    from sentence_transformers import SentenceTransformer
+except ImportError:
+    np = None
+    SentenceTransformer = None
+    print("⚠️ [RAG] numpy 또는 sentence_transformers 모듈이 없습니다. RAG 기능이 비활성화됩니다.")
 
 
 # ============================================================
-# NPC 프롬프트 로더 (NPC_prompt.json)
+# 0. Document 데이터 구조
+# ============================================================
+
+@dataclass
+class Document:
+    """메타데이터가 포함된 문서 단위"""
+    text: str
+    metadata: Dict[str, str] = field(default_factory=dict)
+
+
+# ============================================================
+# 1. RAG Retriever (V3 Enhanced - Metadata Filtering)
+# ============================================================
+
+class RAGRetriever:
+    """
+    Sentence-BERT 기반 RAG 검색기 (Numpy 코사인 유사도)
+    - List[str] 또는 List[Document]를 받아 인덱싱
+    - retrieve() 시 filter_fn 콜백으로 메타데이터 필터링 가능
+    """
+    def __init__(
+        self,
+        docs,  # List[str] 또는 List[Document]
+        embed_model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        shared_model: Optional[Any] = None
+    ):
+        # docs 정규화: str -> Document 변환
+        if docs and isinstance(docs[0], str):
+            self._docs: List[Document] = [Document(text=d) for d in docs]
+        else:
+            self._docs: List[Document] = list(docs) if docs else []
+
+        self.enabled = (SentenceTransformer is not None) and (len(self._docs) > 0)
+        self.embed_model_name = embed_model_name
+        self.normalize = True
+
+        self.model = None
+        self.emb: Optional["np.ndarray"] = None
+
+        if not self.enabled:
+            print("[INFO] RAG disabled (No docs or No module).")
+            return
+
+        # 공유 모델이 있으면 재사용 (메모리 절약)
+        if shared_model is not None:
+            self.model = shared_model
+        else:
+            print(f"[RAG] Loading Embedding Model: {embed_model_name}...")
+            self.model = SentenceTransformer(embed_model_name)
+
+        texts = [d.text for d in self._docs]
+        print(f"[RAG] Encoding {len(texts)} chunks...")
+        self.emb = self.model.encode(texts, convert_to_numpy=True, show_progress_bar=False).astype("float32")
+
+        if self.normalize:
+            norm = np.linalg.norm(self.emb, axis=1, keepdims=True) + 1e-12
+            self.emb = self.emb / norm
+
+        print(f"[RAG] Ready. {len(self._docs)} chunks indexed.")
+
+    @property
+    def chunks(self) -> List[str]:
+        """하위 호환: 텍스트 리스트 반환"""
+        return [d.text for d in self._docs]
+
+    def retrieve(
+        self,
+        query: str,
+        top_k: int = 3,
+        filter_fn: Optional[Callable[[Dict[str, str]], bool]] = None
+    ) -> List[Tuple[str, float]]:
+        """
+        유사도 기반 검색.
+        filter_fn: metadata dict -> bool (True면 포함)
+        """
+        if not self.enabled or not query or not query.strip():
+            return []
+
+        q = self.model.encode([query], convert_to_numpy=True, show_progress_bar=False).astype("float32")
+        if self.normalize:
+            q = q / (np.linalg.norm(q, axis=1, keepdims=True) + 1e-12)
+
+        # 필터링할 인덱스 결정
+        if filter_fn:
+            candidates = [i for i, d in enumerate(self._docs) if filter_fn(d.metadata)]
+        else:
+            candidates = list(range(len(self._docs)))
+
+        if not candidates:
+            return []
+
+        # 후보만 점수 계산
+        candidate_emb = self.emb[candidates]  # (C, D)
+        scores = candidate_emb @ q[0]         # (C,)
+
+        k = max(1, min(len(candidates), int(top_k)))
+        top_idx = np.argsort(-scores)[:k]
+
+        return [(self._docs[candidates[i]].text, float(scores[i])) for i in top_idx]
+
+
+# ============================================================
+# 2. NPC 프롬프트 로더 (Updated for V3 Format)
 # ============================================================
 
 class NPCPromptLoader:
     """
-    NPC_prompt.json에서 NPC별 페르소나 프롬프트를 동적으로 로드한다.
+    V3 형식의 NPC_prompt.json 로더 (Dynamic Persona RAG 지원)
     
-    JSON 구조:
-    {
-        "npcs": {
-            "청갈치": {
-                "id": "CheongGalchi",
-                "role": "...",
-                "affinity_levels": {
-                    "BAD":     { "range": "0-19",   "personality": "...", "behavior_rules": [...], ... },
-                    "NORMAL":  { "range": "20-45",  ... },
-                    "GOOD":    { "range": "46-75",  ... },
-                    "PERFECT": { "range": "76-100", ... }
-                }
-            },
-            ...
-        }
-    }
+    구조: { "npc_id": { "bad": "...", "normal": "...", ... }, ... }
+    
+    프롬프트를 정적(Core)과 동적(Rules)으로 분리:
+    - Core (항상 포함): [NPC_ID], [PERSONALITY], [SPEECH_STYLE]
+    - Dynamic (RAG 검색): [BEHAVIOR_RULES], [INFO_POLICY] 내의 개별 규칙
     """
     
+    # 프롬프트에서 분리할 섹션 헤더
+    _SECTION_PATTERN = re.compile(
+        r'\[(?:NPC_ID|PERSONALITY|BEHAVIOR_RULES|SPEECH_STYLE|INFO_POLICY)\]'
+    )
+    # Core (정적) 섹션 - 항상 시스템 프롬프트에 포함
+    _CORE_SECTIONS = {"[NPC_ID]", "[PERSONALITY]", "[SPEECH_STYLE]"}
+    # Dynamic (RAG 검색) 섹션 - Vector DB에 청킹하여 저장
+    _DYNAMIC_SECTIONS = {"[BEHAVIOR_RULES]", "[INFO_POLICY]"}
+    
     def __init__(self, json_path: str, characters_json_path: Optional[str] = None):
-        """
-        NPC_prompt.json 로드 및 ID→데이터 매핑 구축
-        characters_json_path가 제공되면 초기 스탯 정보도 로드
-        """
         if not os.path.exists(json_path):
             raise FileNotFoundError(f"NPC 프롬프트 JSON 파일을 찾을 수 없습니다: {json_path}")
         
         with open(json_path, "r", encoding="utf-8") as f:
-            raw = json.load(f)
+            self._prompts = json.load(f)
         
-        self._npcs_by_korean_name: Dict[str, Dict] = raw.get("npcs", {})
+        # ID Normalization (lowercase keys)
+        self._prompts_lower = {k.lower(): v for k, v in self._prompts.items()}
         
-        # id → (korean_name, npc_data) 매핑 구축
-        self._npcs_by_id: Dict[str, tuple] = {}
-        for kr_name, npc_data in self._npcs_by_korean_name.items():
-            npc_id = npc_data.get("id", "")
-            self._npcs_by_id[npc_id] = (kr_name, npc_data)
-            # 대문자 버전도 매핑 (CHEONGGALCHI → CheongGalchi)
-            self._npcs_by_id[npc_id.upper()] = (kr_name, npc_data)
+        # characters.json 로드 (ID -> 한국어 이름 매핑용)
+        self._id_to_korean: Dict[str, str] = {}
+        self._character_stats: Dict[str, NPCState] = {}
         
-        # characters.json 로드 (초기 스탯용)
-        self._character_stats: Dict[str, Dict] = {}
         if characters_json_path and os.path.exists(characters_json_path):
             try:
                 with open(characters_json_path, "r", encoding="utf-8") as f:
                     char_data = json.load(f)
                 
-                # Korean Name -> Stats 매핑 생성
-                # characters.json 구조: {"KEY": {"name_kr": "...", "stats": ...}}
                 for key, info in char_data.items():
-                    name_kr = info.get("name_kr")
+                    name_kr = info.get("name_kr", key)
+                    self._id_to_korean[key.lower()] = name_kr
+                    self._id_to_korean[key.upper()] = name_kr
+                    
                     stats = info.get("stats", {})
-                    if name_kr:
-                        self._character_stats[name_kr] = stats
-                
-                print(f"[NPCPromptLoader] Loaded stats for {len(self._character_stats)} characters from characters.json")
+                    self._character_stats[key.lower()] = NPCState(
+                        friendly=stats.get("friendly", 50),
+                        faith=stats.get("faith", 50)
+                    )
+                    
+                print(f"[NPCPromptLoader] Loaded metadata for {len(char_data)} characters.")
             except Exception as e:
                 print(f"⚠️ [NPCPromptLoader] Failed to load characters.json: {e}")
         
-        print(f"[NPCPromptLoader] Loaded {len(self._npcs_by_korean_name)} NPCs from {json_path}")
-        for kr_name, npc_data in self._npcs_by_korean_name.items():
-            print(f"  - {kr_name} (id={npc_data.get('id')})")
-    
-    def _friendly_to_level(self, friendly: int) -> str:
+        # ── 청킹: Core / Dynamic 분리 ──
+        self._core_prompts: Dict[str, Dict[str, str]] = {}   # {npc_id: {bucket: core_text}}
+        self._persona_docs: List[Document] = []               # Dynamic 규칙 청크
+        self._chunk_all_prompts()
+        
+        # ── Persona RAG DB 초기화 ──
+        self.persona_rag: Optional[RAGRetriever] = None
+        if self._persona_docs:
+            self.persona_rag = RAGRetriever(self._persona_docs)
+            print(f"[NPCPromptLoader] PersonaRAG indexed {len(self._persona_docs)} rule chunks.")
+        
+        print(f"[NPCPromptLoader] Loaded prompts for {len(self._prompts)} NPCs.")
+
+    # ──────────────────────────────────────────
+    # 프롬프트 청킹 로직
+    # ──────────────────────────────────────────
+    def _parse_sections(self, prompt_text: str) -> Dict[str, str]:
         """
-        friendly 값을 affinity level로 변환.
-        get_relationship_bucket과 동일한 경계값 사용.
+        하나의 프롬프트 텍스트를 섹션별로 분리.
+        예: {"[NPC_ID]": "Name: 곽빙어", "[PERSONALITY]": "냉소적...", ...}
         """
-        bucket = get_relationship_bucket(friendly)
-        # bucket (bad/normal/good/perfect) → JSON key (BAD/NORMAL/GOOD/PERFECT)
-        return bucket.upper()
+        sections: Dict[str, str] = {}
+        current_header = None
+        current_lines: List[str] = []
+        
+        for line in prompt_text.split("\n"):
+            stripped = line.strip()
+            if self._SECTION_PATTERN.match(stripped):
+                # 이전 섹션 저장
+                if current_header:
+                    sections[current_header] = "\n".join(current_lines).strip()
+                current_header = stripped
+                current_lines = []
+            else:
+                current_lines.append(line)
+        
+        # 마지막 섹션 저장
+        if current_header:
+            sections[current_header] = "\n".join(current_lines).strip()
+        
+        return sections
     
-    def get_npc_data(self, npc_id: str) -> Optional[tuple]:
-        """NPC ID로 (한국어 이름, NPC 데이터) 반환"""
-        return self._npcs_by_id.get(npc_id) or self._npcs_by_id.get(npc_id.upper())
-    
+    def _chunk_all_prompts(self):
+        """
+        모든 NPC의 모든 버킷 프롬프트를 파싱하여
+        Core(정적)와 Dynamic(RAG 청크)으로 분리.
+        """
+        for npc_id, buckets in self._prompts_lower.items():
+            self._core_prompts[npc_id] = {}
+            
+            for bucket, full_text in buckets.items():
+                sections = self._parse_sections(full_text)
+                
+                # --- Core 프롬프트 조합 (항상 포함) ---
+                core_parts = []
+                for header in ["[NPC_ID]", "[PERSONALITY]", "[SPEECH_STYLE]"]:
+                    if header in sections:
+                        core_parts.append(f"{header}\n{sections[header]}")
+                self._core_prompts[npc_id][bucket] = "\n\n".join(core_parts)
+                
+                # --- Dynamic 규칙 청킹 (개별 룰 -> Document) ---
+                for header in ["[BEHAVIOR_RULES]", "[INFO_POLICY]"]:
+                    if header not in sections:
+                        continue
+                    section_text = sections[header]
+                    # 줄 단위("- ...")로 분리
+                    rules = [r.strip() for r in section_text.split("\n") if r.strip().startswith("- ") or r.strip().startswith("기본 구조")]
+                    if not rules:
+                        # 분리 불가 시 전체를 하나의 청크로
+                        rules = [section_text]
+                    
+                    for rule in rules:
+                        self._persona_docs.append(Document(
+                            text=f"[{header}] {rule}",
+                            metadata={
+                                "npc_id": npc_id,
+                                "bucket": bucket,
+                                "section": header
+                            }
+                        ))
+
+    # ──────────────────────────────────────────
+    # 공개 API
+    # ──────────────────────────────────────────
     def get_initial_state(self, npc_id: str) -> NPCState:
+        """초기 상태 반환"""
+        return self._character_stats.get(npc_id.lower(), NPCState(friendly=50, faith=50))
+
+    def get_core_prompt(self, npc_id: str, friendly: int) -> str:
         """
-        NPC ID에 해당하는 초기 상태(NPCState) 반환
-        characters.json 데이터가 있으면 사용, 없으면 기본값(50/50)
+        정적 Core 프롬프트 반환 (PERSONALITY + SPEECH_STYLE).
+        항상 시스템 프롬프트에 포함됩니다.
         """
-        kr_name = self.get_korean_name(npc_id)
-        stats = self._character_stats.get(kr_name)
+        npc_key = npc_id.lower()
+        cores = self._core_prompts.get(npc_key)
+        if not cores:
+            return f"[NPC_ID]\nID: {npc_id}\n(프롬프트 데이터가 없습니다)\n[SPEECH_STYLE]\n- 한국어로 대화."
         
-        if stats:
-            return NPCState(
-                friendly=stats.get("friendly", 50),
-                faith=stats.get("faith", 50)
-            )
+        bucket = get_relationship_bucket(friendly)
+        if bucket in cores:
+            return cores[bucket]
+        return cores.get("normal", cores.get("bad", next(iter(cores.values()))))
+
+    def retrieve_dynamic_rules(
+        self,
+        npc_id: str,
+        friendly: int,
+        user_message: str,
+        top_k: int = 5
+    ) -> str:
+        """
+        동적 행동 규칙 검색 (RAG).
+        현재 NPC ID + 친밀도 버킷으로 필터링 후, 유사도 기반 검색.
+        """
+        if not self.persona_rag or not self.persona_rag.enabled:
+            # RAG 비활성시 기존 방식으로 fallback
+            return self.build_persona_prompt(npc_id, friendly)
         
-        # Fallback
-        return NPCState(friendly=50, faith=50)
+        bucket = get_relationship_bucket(friendly)
+        npc_key = npc_id.lower()
+        
+        def _filter(meta: Dict[str, str]) -> bool:
+            return meta.get("npc_id") == npc_key and meta.get("bucket") == bucket
+        
+        results = self.persona_rag.retrieve(user_message, top_k=top_k, filter_fn=_filter)
+        
+        if not results:
+            return ""  # No dynamic rules found
+        
+        rules_text = "\n".join([text for text, score in results])
+        return f"[DYNAMIC_GUIDELINES (친밀도: {bucket})]\n{rules_text}"
 
     def build_persona_prompt(self, npc_id: str, friendly: int) -> str:
         """
-        NPC ID와 friendly 점수에 따라 시스템 프롬프트를 생성한다.
-        
-        Returns:
-            구조화된 페르소나 프롬프트 문자열
+        [하위 호환] friendly 점수에 따른 전체 페르소나 프롬프트 반환.
+        Dynamic RAG를 사용하지 않는 경우의 fallback.
         """
-        result = self.get_npc_data(npc_id)
-        if not result:
-            return f"[NPC_ID]\n이름: {npc_id}\n\n(프롬프트 데이터 없음 — 기본 모드로 대화합니다)"
+        prompts = self._prompts_lower.get(npc_id.lower())
+        if not prompts:
+            return f"[NPC_ID]\nID: {npc_id}\n(프롬프트 데이터가 없습니다)\n[SPEECH_STYLE]\n- 한국어로 대화."
+            
+        bucket = get_relationship_bucket(friendly)
         
-        kr_name, npc_data = result
-        role = npc_data.get("role", "")
+        if bucket in prompts:
+            return prompts[bucket]
+        if "normal" in prompts:
+            return prompts["normal"]
+        if "bad" in prompts:
+            return prompts["bad"]
         
-        # affinity level 결정
-        level_key = self._friendly_to_level(friendly)
-        levels = npc_data.get("affinity_levels", {})
-        level_data = levels.get(level_key)
-        
-        if not level_data:
-            # fallback: NORMAL
-            level_data = levels.get("NORMAL", {})
-            level_key = "NORMAL"
-        
-        # 프롬프트 조합
-        personality = level_data.get("personality", "")
-        behavior_rules = level_data.get("behavior_rules", [])
-        speech_style = level_data.get("speech_style", "")
-        info_policy = level_data.get("info_policy", "")
-        
-        prompt_parts = []
-        
-        # [NPC_ID]
-        prompt_parts.append(f"[NPC_ID]\n이름: {kr_name}\n정체: {role}")
-        
-        # [PERSONALITY]
-        if personality:
-            prompt_parts.append(f"[PERSONALITY]\n{personality}")
-        
-        # [BEHAVIOR_RULES]
-        if behavior_rules:
-            rules_str = "\n".join(f"- {r}" for r in behavior_rules)
-            prompt_parts.append(f"[BEHAVIOR_RULES]\n{rules_str}")
-        
-        # [SPEECH_STYLE]
-        if speech_style:
-            prompt_parts.append(f"[SPEECH_STYLE]\n{speech_style}")
-        
-        # [INFO_POLICY]
-        if info_policy:
-            prompt_parts.append(f"[INFO_POLICY]\n{info_policy}")
-        
-        return "\n\n".join(prompt_parts)
-    
+        return next(iter(prompts.values()))
+
     def get_korean_name(self, npc_id: str) -> str:
         """NPC ID → 한국어 이름 반환"""
-        result = self.get_npc_data(npc_id)
-        if result:
-            return result[0]
-        return npc_id
-    
+        return self._id_to_korean.get(npc_id.lower(), npc_id)
+
     def get_all_npc_ids(self) -> List[str]:
-        """NPC_prompt.json에 정의된 모든 NPC ID 목록 반환"""
-        ids = []
-        for info in self._npcs_by_korean_name.values():
-            if "id" in info:
-                ids.append(info["id"])
-        return ids
+        """모든 NPC ID 반환"""
+        return list(self._prompts_lower.keys())
 
 
 # ============================================================
-# 통합 파이프라인 (v2)
+# 3. 통합 파이프라인 (Updated)
 # ============================================================
 
 class NPCDialoguePipeline:
     """
-    NPC 대화 생성 통합 파이프라인 (v2)
-    
-    워크플로우:
-    1. 사용자 입력 → IntentAnalyzer → 의도/감정 분석 (per-tag threshold)
-    2. 분석 결과 + 현재 상태 → 컨트롤 시그널 생성
-    3. RAG 검색 (세계관 지식)
-    4. NPC_prompt.json에서 페르소나 동적 선택 (friendly → affinity level)
-    5. LLM → 대화 생성
-    6. 후처리 (불필요한 텍스트 제거)
-    7. 상태 업데이트
+    NPC 대화 생성 통합 파이프라인 (v2 Enhanced)
+    - V3 Prompts + RAG + V2 Logic
     """
     
     def __init__(
@@ -216,7 +371,7 @@ class NPCDialoguePipeline:
         analyzer: IntentAnalyzer,
         llm: Runnable,
         prompt_loader: NPCPromptLoader,
-        retriever: Optional[BaseRetriever] = None,
+        retriever: Optional[RAGRetriever] = None,
         npc_id: str = "CHEONGGALCHI",
         initial_state: NPCState = None
     ):
@@ -227,50 +382,68 @@ class NPCDialoguePipeline:
         self.npc_id = npc_id
         self.state = initial_state or NPCState()
         
-        # 한국어 이름 캐시
         self.korean_name = self.prompt_loader.get_korean_name(npc_id)
-        
-        # 디버그 모드
         self.debug = False
-    
+        
+        # RAG가 외부에서 주입되지 않았으면, 기본 Lore 파일 로드 시도
+        if not self.retriever:
+            try:
+                base_dir = os.path.dirname(os.path.abspath(__file__))
+                # data_dir is usually ../../data from current file's location in app/agents
+                lore_path = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "data", "world_lore.json")
+                
+                # Check absolute path fallback
+                if not os.path.exists(lore_path):
+                     lore_path = os.path.join(base_dir, "../data/world_lore.json")
+
+                if os.path.exists(lore_path):
+                    with open(lore_path, "r", encoding="utf-8") as f:
+                        docs = json.load(f)
+                    self.retriever = RAGRetriever(docs)
+                    print(f"[Pipeline] Auto-loaded RAG with {len(docs)} lore docs.")
+                else:
+                    print(f"[Pipeline] RAG disabled. world_lore.json not found at {lore_path}")
+            except Exception as e:
+                print(f"⚠️ [Pipeline] Failed to auto-load RAG: {e}")
+
     def _build_system_prompt(
         self,
         user_message: str,
         analysis: Dict[str, Any],
         context: str = ""
     ) -> str:
-        """
-        시스템 프롬프트 구성 (동적 JSON 기반)
+        # 1. Core 페르소나 (정적: PERSONALITY + SPEECH_STYLE)
+        core = self.prompt_loader.get_core_prompt(self.npc_id, self.state.friendly)
         
-        구성 요소:
-        1. 페르소나 프롬프트 (NPC_prompt.json → friendly에 따라 선택)
-        2. RAG 컨텍스트 (세계관 지식)
-        3. 컨트롤 시그널 (분석 결과)
-        4. 출력 제약
-        """
-        # 페르소나 선택 (JSON 기반)
-        persona = self.prompt_loader.build_persona_prompt(self.npc_id, self.state.friendly)
+        # 2. Dynamic 행동 규칙 (RAG 기반 검색)
+        dynamic_rules = self.prompt_loader.retrieve_dynamic_rules(
+            self.npc_id, self.state.friendly, user_message, top_k=5
+        )
         
-        # 컨트롤 시그널
+        # 3. 컨트롤 시그널
         control_signal = format_control_signal(
             analysis["reason_tags"],
             analysis["friendly_delta"],
             analysis["faith_delta"]
         )
         
-        # 시스템 프롬프트 조합: 페르소나 + (RAG 컨텍스트) + 컨트롤 시그널 + 출력 규칙
-        system_prompt = persona.strip()
+        # 4. 조합
+        system_prompt = core.strip()
+        
+        if dynamic_rules:
+            system_prompt += "\n\n" + dynamic_rules.strip()
         
         if context:
-            system_prompt += "\n\n[WORLD_CONTEXT]\n" + context.strip()
-        
+            system_prompt += "\n\n[WORLD_CONTEXT(RAG)]\n" + context.strip()
+            
         system_prompt += "\n\n" + control_signal.strip()
         
+        # Output Constraints (Korean Enforcement)
         system_prompt += "\n\n" + (
-            "[OUTPUT]\n"
-            f"- 한국어로 '{self.korean_name} 대사만' 출력한다.\n"
-            "- 선택지/해설/요약/마크다운/코드블록 금지.\n"
-            "- 마지막 문장은 (반문/조건 제시/다음 행동 제안) 중 하나로 끝낸다.\n"
+            "[최종 출력 규칙]\n"
+            f"- {self.npc_id}의 대사는 오직 '한국어'로만 출력하십시오.\n"
+            "- 절대로 영어나 중국어를 사용하지 마십시오.\n"
+            "- 마크다운, 선택지, 설명, 지문 등을 포함하지 마십시오.\n"
         )
         
         return system_prompt.strip()
@@ -280,89 +453,66 @@ class NPCDialoguePipeline:
         user_message: str,
         history: Optional[List[Dict[str, str]]] = None,
         memory_context: Optional[str] = None,
-        max_new_tokens: int = 160,
-        do_sample: bool = False
+        max_new_tokens: int = 200,
+        do_sample: bool = True
     ) -> Dict[str, Any]:
-        """
-        대화 생성
+        """Conversation Main Loop"""
         
-        Args:
-            user_message: 사용자 입력
-            history: 대화 내역 [{"speaker": "user"|"npc", "content": "..."}, ...]
-            memory_context: 로컬에서 검색한 장기 기억 컨텍스트 (Vector DB)
-            max_new_tokens: 생성 토큰 수
-            do_sample: 샘플링 사용 여부
-            
-        Returns:
-            {
-                "npc_response": str,
-                "state": Dict[str, int],
-                "analysis": Dict[str, Any],
-                "debug": Optional[Dict]
-            }
-        """
-        # 1. 의도 분석
+        # 1. Intent Analysis
         analysis = self.analyzer.analyze(user_message)
         
-        # 2. 상태 업데이트
+        # 2. State Update
         self.state.apply_delta(
             analysis["friendly_delta"],
             analysis["faith_delta"]
         )
         
-        # 3. RAG: 관련 정보 검색 (EC2 로컬 Vector DB)
+        # 3. RAG Retrieval (V3 style)
         context_text = ""
-        if self.retriever:
-            try:
-                search_query = f"{self.npc_id} 성격 특징. {user_message}"
-                docs = self.retriever.invoke(search_query)
-                context_text = "\n".join([doc.page_content for doc in docs])
-            except Exception as e:
-                print(f"⚠️ [RAG] 검색 실패: {e}")
+        if self.retriever and self.retriever.enabled:
+            # Query Expansion: Bilingual
+            search_query = f"About {self.npc_id} {self.korean_name}. {user_message}"
+            results = self.retriever.retrieve(search_query, top_k=3)
+            # Result Formatting
+            context_text = "\n".join([f"- {doc}" for doc, score in results])
+            if self.debug and results:
+                print(f"[RAG] Found {len(results)} docs (top score: {results[0][1]:.3f})")
 
-        # 4. 장기 기억 컨텍스트 병합 (로컬에서 전달받은 기억)
+        # 4. Long-term Memory Merge
         if memory_context:
             if context_text:
-                context_text = context_text + "\n\n[LONG_TERM_MEMORY]\n" + memory_context
+                context_text += "\n\n[USER_MEMORY]\n" + memory_context
             else:
-                context_text = "[LONG_TERM_MEMORY]\n" + memory_context
-            print(f"[Memory] 장기 기억 컨텍스트 적용 ({len(memory_context)}자)")
+                context_text = "[USER_MEMORY]\n" + memory_context
 
-        # 4. 시스템 프롬프트 생성 (JSON 기반 페르소나 + 컨텍스트)
+        # 5. System Prompt Construction
         system_prompt = self._build_system_prompt(user_message, analysis, context=context_text)
         
-        # 5. 대화 생성 프롬프트 구성 (Gemma 2 포맷)
+        # 6. LLM Prompt Construction (Gemma-style)
         full_prompt = f"<start_of_turn>user\n{system_prompt}<end_of_turn>\n"
-        full_prompt += f"<start_of_turn>model\n확인했습니다. {self.korean_name}의 페르소나로 대화하겠습니다.<end_of_turn>\n"
+        full_prompt += f"<start_of_turn>model\n알겠습니다. 이제부터 {self.npc_id}가 되어 한국어로만 대화하겠습니다.<end_of_turn>\n"
         
-        # 대화 이력 추가
         if history:
             for msg in history[-10:]:
                 role = "user" if msg.get("speaker") == "user" else "model"
                 content = msg.get("content", "")
                 full_prompt += f"<start_of_turn>{role}\n{content}<end_of_turn>\n"
         
-        # 현재 사용자 메시지 추가
-        full_prompt += f"<start_of_turn>user\n{{user_input}}<end_of_turn>\n<start_of_turn>model\n"
-
+        full_prompt += f"<start_of_turn>user\n{user_message}<end_of_turn>\n<start_of_turn>model\n"
+        
+        # 7. 생성
         prompt_template = PromptTemplate(input_variables=["user_input"], template=full_prompt)
         chain = prompt_template | self.llm | StrOutputParser()
         raw_response = chain.invoke({"user_input": user_message})
         
-        print(f"\n{'='*60}")
-        print(f"[DEBUG] LLM 원본 응답:")
-        print(raw_response)
-        print(f"{'='*60}")
-        
-        # 6. 후처리
+        # 8. 후처리
         npc_response = sanitize_npc_response(raw_response)
         
-        print(f"[DEBUG] 후처리 결과:")
-        print(npc_response)
-        print(f"{'='*60}\n")
-        
-        # 7. 결과 구성
-        bucket = get_relationship_bucket(self.state.friendly)
+        if self.debug:
+            print(f"[DEBUG] System Prompt:\n{system_prompt[:200]}...")
+            print(f"[DEBUG] Raw Response:\n{raw_response}")
+
+        # 9. 결과 반환
         result = {
             "npc_response": npc_response,
             "state": self.state.to_dict(),
@@ -370,120 +520,58 @@ class NPCDialoguePipeline:
                 "reason_tags": analysis["reason_tags"],
                 "friendly_delta": analysis["friendly_delta"],
                 "faith_delta": analysis["faith_delta"],
-                "relationship_bucket": bucket
+                "relationship_bucket": get_relationship_bucket(self.state.friendly)
             }
         }
         
-        # 디버그 정보
         if self.debug:
             result["debug"] = {
-                "raw_response": raw_response,
-                "system_prompt": system_prompt,
                 "rag_context": context_text,
-                "tag_probs": analysis["tag_probs"]
+                "raw": raw_response
             }
-        
+            
         return result
 
 
-# ============================================================
-# 사용 예시
-# ============================================================
-
 if __name__ == "__main__":
     import sys
+    # 간이 테스트용
+    print("=== NPC Pipeline V2 Enhanced Test ===")
     
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    # Mock LLM
+    class MockLLM:
+        def invoke(self, x):
+            return "테스트 응답입니다."
+    
+    # Mock Analyzer
+    class MockAnalyzer:
+        def analyze(self, text):
+            return {
+                "reason_tags": ["TEST"],
+                "friendly_delta": 0,
+                "faith_delta": 0,
+                "tag_probs": {}
+            }
 
-    from app.core.llm_factory import LLMFactory
-    
-    print("=== NPC Dialogue Pipeline v2 Demo ===\n")
-    
     base_dir = os.path.dirname(os.path.abspath(__file__))
-    data_dir = os.path.join(os.path.dirname(base_dir), "data")
-    ckpt = os.path.join(base_dir, "NPC_model_v2", "best_model.pt")
-    thr_json = os.path.join(base_dir, "NPC_model_v2", "thresholds_standard.json")
+    data_dir = os.path.join(os.path.dirname(os.path.dirname(base_dir)), "data")
     prompt_json = os.path.join(data_dir, "NPC_prompt.json")
+    char_json = os.path.join(data_dir, "characters.json")
     
-    print("[1/4] Loading IntentAnalyzer (v2)...")
-    analyzer = IntentAnalyzer(
-        encoder_model="monologg/koelectra-base-v3-discriminator",
-        checkpoint_path=ckpt,
-        threshold_json_path=thr_json,
-        tag_k=3,
-        tag_min_p=0.15
-    )
-    
-    print("[2/4] Loading NPC prompts...")
-    loader = NPCPromptLoader(prompt_json)
-    
-    print("[3/4] Loading LLM (via LLMFactory)...")
-    llm = LLMFactory.create_llm(model_key="npc")
-    
-    print("[4/4] Creating pipeline...")
-    pipeline = NPCDialoguePipeline(
-        analyzer=analyzer,
-        llm=llm,
-        prompt_loader=loader,
-        npc_id="CheongGalchi",
-        initial_state=NPCState(friendly=30, faith=30)
-    )
-    
-    pipeline.debug = True
-    
-    print(f"\n=== {pipeline.korean_name} 대화 시작 ===")
-    print("명령어: /debug on|off, /state, exit")
-    print()
-    
-    while True:
-        user_input = input("플레이어: ").strip()
+    if os.path.exists(prompt_json):
+        loader = NPCPromptLoader(prompt_json, char_json)
+        # Note: If extract_v3_data.py was run, lowercase keys are normalized
+        print(f"Loader initialized. IDs: {list(loader._id_to_korean.keys())}")
         
-        if not user_input:
-            continue
+        pipeline = NPCDialoguePipeline(
+            analyzer=MockAnalyzer(),
+            llm=MockLLM(),
+            prompt_loader=loader,
+            npc_id="CheongGalchi"
+        )
         
-        if user_input.lower() == "exit":
-            print("대화를 종료합니다.")
-            break
-        
-        if user_input.startswith("/"):
-            if user_input == "/debug on":
-                pipeline.debug = True
-                print("[CMD] 디버그 모드: ON")
-            elif user_input == "/debug off":
-                pipeline.debug = False
-                print("[CMD] 디버그 모드: OFF")
-            elif user_input == "/state":
-                print(f"[CMD] 현재 상태: {pipeline.state.to_dict()}")
-            else:
-                print("[CMD] 알 수 없는 명령어")
-            continue
-        
-        try:
-            result = pipeline.chat(user_input)
-            
-            print(f"\n[{pipeline.korean_name}]")
-            print(result["npc_response"])
-            print()
-            print(f"상태: {result['state']}")
-            print(f"분석: 태그={result['analysis']['reason_tags']}, "
-                  f"호감={result['analysis']['friendly_delta']:+d}, "
-                  f"신뢰={result['analysis']['faith_delta']:+d}, "
-                  f"버킷={result['analysis']['relationship_bucket']}")
-            
-            if pipeline.debug and "debug" in result:
-                print(f"\n[디버그]")
-                print(f"태그 확률 (상위 5개):")
-                top5 = sorted(
-                    result["debug"]["tag_probs"].items(),
-                    key=lambda x: -x[1]
-                )[:5]
-                for tag, prob in top5:
-                    print(f"  {tag}: {prob:.3f}")
-            
-            print()
-            
-        except Exception as e:
-            print(f"[오류] {e}")
-            if pipeline.debug:
-                import traceback
-                traceback.print_exc()
+        print(f"Pipeline ready for {pipeline.korean_name}")
+        res = pipeline.chat("안녕?")
+        print("Response:", res["npc_response"])
+    else:
+        print(f"NPC_prompt.json not found at {prompt_json}")

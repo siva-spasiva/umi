@@ -234,10 +234,24 @@ class ModelManager:
             return
 
         try:
-            from transformers import pipeline as hf_pipeline
+            from transformers import pipeline as hf_pipeline, StoppingCriteria, StoppingCriteriaList
             from langchain_huggingface import HuggingFacePipeline
 
-            print("🔄 [NPC-LLM] Wrapping Story model for NPC dialogue...")
+            # Stop Criteria 정의 (Gemma <end_of_turn> 토큰 ID 감지)
+            # tokenizer.convert_tokens_to_ids("<end_of_turn>") usually returns 107
+            stop_token_id = self.story_tokenizer.convert_tokens_to_ids("<end_of_turn>")
+            
+            class StopOnTokens(StoppingCriteria):
+                def __init__(self, stop_ids):
+                    self.stop_ids = stop_ids
+                def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+                    # 마지막 생성 토큰이 stop_id와 일치하면 중단
+                    return input_ids[0, -1] == self.stop_ids
+
+            stopping_criteria = StoppingCriteriaList([StopOnTokens(stop_token_id)])
+
+            print(f"🔄 [NPC-LLM] Wrapping Story model with strict stopping on token ID {stop_token_id}...")
+            
             pipe = hf_pipeline(
                 "text-generation",
                 model=self.story_model,
@@ -246,10 +260,15 @@ class ModelManager:
                 temperature=0.7,
                 top_p=0.9,
                 repetition_penalty=1.1,
-                return_full_text=False  # 프롬프트가 출력에 포함되지 않도록 설정
+                return_full_text=False,
+                stopping_criteria=stopping_criteria,  # [중요] 강제 중단 기준 적용
+                pad_token_id=self.story_tokenizer.eos_token_id # pad_token 설정
             )
+            
+            # LangChain Wrapper
             self.npc_llm = HuggingFacePipeline(pipeline=pipe)
-            print("✅ [NPC-LLM] NPC dialogue LLM ready (shared with Story model)")
+            
+            print("✅ [NPC-LLM] NPC dialogue LLM ready (with StoppingCriteria)")
         except Exception as e:
             print(f"⚠️ [NPC-LLM] Setup failed: {e}")
 
@@ -357,14 +376,11 @@ async def infer_npc(req: NPCRequest):
         from app.agents.npc_pipeline import NPCDialoguePipeline
         from app.core.memory import memory_manager
 
-        retriever = memory_manager.get_retriever(k=2)
-
         if req.npc_id not in model_mgr.npc_pipelines:
             model_mgr.npc_pipelines[req.npc_id] = NPCDialoguePipeline(
                 analyzer=model_mgr.npc_analyzer,
                 llm=model_mgr.npc_llm,
                 prompt_loader=model_mgr.npc_prompt_loader,
-                retriever=retriever,
                 npc_id=req.npc_id,
                 initial_state=NPCState(friendly=50, faith=50)
             )
@@ -533,8 +549,6 @@ async def infer_npc_conversation(req: NPCConversationRequest):
         from app.agents.npc_pipeline import NPCDialoguePipeline
         from app.core.memory import memory_manager
 
-        retriever = memory_manager.get_retriever(k=2)
-
         # NPC 파이프라인 준비
         for npc_id in req.npc_ids:
             if npc_id not in model_mgr.npc_pipelines:
@@ -545,7 +559,7 @@ async def infer_npc_conversation(req: NPCConversationRequest):
                     analyzer=model_mgr.npc_analyzer,
                     llm=model_mgr.npc_llm,
                     prompt_loader=model_mgr.npc_prompt_loader,
-                    retriever=retriever,
+                    # retriever=None,  # Pipeline auto-loads world_lore.json
                     npc_id=npc_id,
                     initial_state=initial_state
                 )

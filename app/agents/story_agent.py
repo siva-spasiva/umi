@@ -151,27 +151,31 @@ class StoryAgent:
         # Let's implement generate_diary_summary instead.
         pass
 
-    def generate_diary_summary(self, messages: str, day_index: int) -> dict:
+    def generate_diary_summary(self, messages: str, day_index: int, fish_level: int = None) -> dict:
         """
         하루의 대화 로그를 바탕으로 StorySummary 스키마에 맞는 JSON을 생성합니다.
         """
         import json
         from app.schemas.story import StorySummary
 
-        # 프롬프트 구성
+        if fish_level is None:
+            # fish_level이 없으면 day_index에 따라 비례 증가 (최대 5)
+            fish_level = min(day_index + 1, 5)
+
+        # Prompt Construction
         system_prompt = (
-            "너는 텍스트 기반 잠입수사 게임 Project: UMI_PROTOCOL의 스토리 에이전트다. "
-            "입력은 하루의 대화 로그(messages)이며, 이를 바탕으로 '일기'만 작성한다. "
-            "톤은 어둡고 불안하며 잠입수사 기록처럼 건조해야 한다. "
-            "밝은/훈훈/희망적 표현 금지. "
-            "fish_level이 높을수록 감각 왜곡(어안렌즈, 비린내, 청각 왜곡 등)을 더 반영한다. "
-            "출력은 JSON이 아니라 '일기 본문 텍스트만' 출력한다."
+            "You are the Story Agent for the text-based infiltration investigation game Project: UMI_PROTOCOL. "
+            "Input is the daily conversation log (messages), and you must write ONLY a 'Diary' based on it. "
+            "Tone must be dark, anxious, and dry like an undercover investigation record. "
+            "No bright/warm/hopeful expressions. "
+            "Higher fish_level reflects more sensory distortion (fisheye lens, fishy smell, auditory distortion). "
+            "Output ONLY the 'Diary Body Text', not JSON."
         )
 
         user_prompt = (
             f"[fish_level={fish_level}]\n"
-            "아래 messages 로그만 근거로 일기를 작성해. 새 사실 창작 금지.\n"
-            "조건: 7~10문장, 줄바꿈 없이 한 덩어리로.\n\n"
+            "Write a diary based ONLY on the messages log below. Do not invent new facts.\n"
+            "Condition: 7~10 sentences, as a single chunk without line breaks.\n\n"
             f"{messages}"
         )
         

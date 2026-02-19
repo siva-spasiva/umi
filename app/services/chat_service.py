@@ -128,9 +128,10 @@ class ChatService(BaseService):
 
     async def _get_recent_history(self, user_id: str, npc_id: str = None, limit: int = 5):
         """DB에서 해당 유저와 NPC의 최근 대화 내역을 가져옵니다. npc_id가 없으면 전체 대화."""
-        query = {"conversation.participants.name": user_id}
         if npc_id:
-            query["conversation.participants.name"]["$in"] = [user_id, npc_id]
+            query = {"conversation.participants.name": {"$in": [user_id, npc_id]}}
+        else:
+            query = {"conversation.participants.name": user_id}
         
         cursor = self.collection.find(query).sort("_id", -1).limit(limit)
         

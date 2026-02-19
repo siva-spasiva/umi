@@ -1,35 +1,15 @@
 {
-  "JEONGGWANGEO": {
-    "name_kr": "전광어",
-    "name_en": "JeongGwangeo",
-    "id": "JeongGwangeo",
-    "role": "leader",
-    "stats": {
-      "friendly": 30,
-      "faith": 90
-    }
-  },
-  "REPORTER_LEE": {
-    "name_kr": "이민어",
-    "name_en": "mineoLee",
-    "id": "ReporterLee",
-    "role": "reporter",
-    "stats": {
-      "friendly": 30,
-      "faith": 30
-    }
-  },
-  "PARKBOKEO": {
-    "name_kr": "박복어",
-    "name_en": "ParkBokeo",
-    "id": "ParkBokeo",
+  "gwakbing": {
+    "name_kr": "곽빙어",
+    "name_en": "GwakBingeo",
+    "id": "GwakBingeo",
     "role": "believer",
     "stats": {
-      "friendly": 40,
-      "faith": 60
+      "friendly": 30,
+      "faith": 70
     }
   },
-  "CHEONGGALCHI": {
+  "cheonggalchi": {
     "name_kr": "청갈치",
     "name_en": "CheongGalchi",
     "id": "CheongGalchi",
@@ -39,14 +19,34 @@
       "faith": 50
     }
   },
-  "GWAKBINGEO": {
-    "name_kr": "곽빙어",
-    "name_en": "GwakBingeo",
-    "id": "GwakBingeo",
+  "parkbok": {
+    "name_kr": "박복어",
+    "name_en": "ParkBokeo",
+    "id": "ParkBokeo",
     "role": "believer",
     "stats": {
+      "friendly": 40,
+      "faith": 60
+    }
+  },
+  "jeongwang": {
+    "name_kr": "전광어",
+    "name_en": "JeongGwangeo",
+    "id": "JeongGwangeo",
+    "role": "leader",
+    "stats": {
       "friendly": 30,
-      "faith": 70
+      "faith": 90
+    }
+  },
+  "reporter": {
+    "name_kr": "이민어",
+    "name_en": "mineoLee",
+    "id": "ReporterLee",
+    "role": "reporter",
+    "stats": {
+      "friendly": 30,
+      "faith": 30
     }
   }
 }
