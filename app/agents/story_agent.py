@@ -203,8 +203,30 @@ class StoryAgent:
             return data
         except Exception as e:
             print(f"[StoryAgent] JSON Parsing Failed: {e}\nRaw: {response_text}")
-            # 실패 시 기본값 반환 혹은 에러
             return {"error": "Failed to parse JSON", "raw": response_text}
+
+    def summarize_event(self, event_log: str) -> str:
+        """
+        [New] 특정 사건(NPC 대화 등)을 요약합니다.
+        장기 기억(Vector DB) 저장용.
+        """
+        system_prompt = (
+            "당신은 미스터리 게임의 객관적인 관찰자입니다. "
+            "주어지는 대화나 사건 로그를 2~3문장으로 요약해 주세요. "
+            "누가, 어디서 만났고 어떤 핵심 정보가 오갔는지에 집중하세요. "
+            "문체는 건조하고 사실적이어야 합니다."
+        )
+        
+        user_prompt = f"Event Log:\n{event_log}"
+        
+        full_prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+        
+        try:
+            summary = self.generate(full_prompt, max_new_tokens=200)
+            return summary.strip()
+        except Exception as e:
+            print(f"⚠️ [StoryAgent] Summary Failed: {e}")
+            return "사건 요약 생성 실패."
 
 # 싱글톤 인스턴스 생성
 story_agent = StoryAgent()

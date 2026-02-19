@@ -16,13 +16,17 @@ from app.core.security import get_current_user_id
 router = APIRouter()
 
 
+from typing import List, Union
+
 @router.post(
     "/conversation/start",
-    response_model=ConversationResponse,
-    summary="NPC 자동 대화 시작",
+    response_model=List[ConversationResponse],
+    summary="NPC 자동 대화 시작 (스케줄 or 수동)",
     description=(
-        "지정한 NPC들이 주제를 정해 자동으로 대화합니다 (유저 참여 X). "
-        "NPC 1~3명이 num_turns만큼 번갈아가며 대화를 생성합니다."
+        "NPC들이 자동으로 대화합니다.\n"
+        "- **수동 모드**: npc_ids, topic 지정 (단일 대화)\n"
+        "- **스케줄 모드**: day_index, session 지정 (스케줄 기반 다중 대화)\n"
+        "반환값은 항상 대화 목록(List)입니다."
     )
 )
 async def start_conversation(
@@ -30,19 +34,38 @@ async def start_conversation(
     user_id: str = Depends(get_current_user_id)
 ):
     """
-    NPC-only 자동 대화
-
-    - topic: 대화 주제
-    - npc_ids: 참여 NPC ID 목록 (1~3명)
-    - num_turns: 자동 대화 턴 수 (기본 5)
+    NPC 자동 대화 시작
+    
+    [입력 파라미터]
+    1. 스케줄 모드:
+        - day_index: 1~7
+        - session: morning, afternoon, evening
+    2. 수동 모드:
+        - topic: 주제
+        - npc_ids: NPC ID 목록
     """
     try:
+        # 스케줄 모드
+        if request.day_index is not None and request.session is not None:
+            results = await conversation_service.trigger_scheduled_conversations(
+                day_index=request.day_index,
+                session=request.session
+            )
+            return results
+        
+        # 수동 모드 (기존 로직)
+        if not request.topic or not request.npc_ids:
+            raise HTTPException(status_code=400, detail="수동 모드에서는 topic과 npc_ids가 필수입니다.")
+            
         result = await conversation_service.start_auto_conversation(
             topic=request.topic,
             npc_ids=request.npc_ids,
             num_turns=request.num_turns,
         )
-        return result
+        return [result]
+        
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"[ERROR] conversation/start: {e}")
         raise HTTPException(

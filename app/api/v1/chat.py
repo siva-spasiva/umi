@@ -107,19 +107,27 @@ async def get_story_summary(day_index: int, user_id: str = Depends(get_current_u
     return summary
 
 
-@router.post("/end-day",
-             summary="하루 종료 — 세션 요약 저장",
-             description="게임 내 하루가 끝날 때 호출합니다. NPC들의 대화를 요약하여 장기 기억(Vector DB)에 저장합니다. npc_id 생략 시 모든 NPC에 대해 수행합니다."
+class EndSessionRequest(BaseModel):
+    """세션 종료 요청"""
+    day_index: int
+    npc_id: Optional[str] = None
+
+
+@router.post("/end-session",
+             summary="세션 종료 — 대화 내용 저장",
+             description="NPC와의 대화 세션을 종료합니다. 대화를 요약하여 장기 기억(Vector DB)에 저장하고 버퍼를 비웁니다. 다음 세션(또는 다음 날)으로 넘어가기 전에 호출합니다."
              )
-async def end_day(request: EndDayRequest, user_id: str = Depends(get_current_user_id)):
+async def end_session(request: EndSessionRequest, user_id: str = Depends(get_current_user_id)):
     """
-    하루 종료 시 NPC 세션 대화를 요약하여 장기 기억에 저장합니다.
+    대화 세션 종료:
+    - 현재까지의 대화 내용을 요약하여 장기 기억에 저장합니다.
+    - session_summary 타입으로 저장됩니다.
     
     - day_index: 게임 내 일차 (1~7)
     - npc_id: NPC 식별자 (선택 사항. 생략 시 현재 세션 버퍼가 있는 모든 NPC 처리)
     """
     try:
-        summaries = await llm_engine.save_day_summary(request.day_index, request.npc_id, user_id)
+        summaries = await llm_engine.save_session_summary(request.day_index, request.npc_id, user_id)
         
         if not summaries:
             return {
@@ -134,7 +142,7 @@ async def end_day(request: EndDayRequest, user_id: str = Depends(get_current_use
             "summaries": summaries
         }
     except Exception as e:
-        print(f"[ERROR] end-day: {e}")
+        print(f"[ERROR] end-session: {e}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"세션 요약 저장 중 오류 발생: {str(e)}"

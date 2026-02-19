@@ -1,0 +1,112 @@
+{
+    "JEONGGWANGEO": {
+        "default": {
+            "morning": "umi_class",
+            "afternoon": "chapel",
+            "evening": "cafeteria"
+        },
+        "0": {
+            "morning": null,
+            "afternoon": null,
+            "evening": "hallway"
+        },
+        "1": {
+            "morning": "umi_class",
+            "afternoon": "chapel",
+            "evening": "cafeteria"
+        },
+        "2": {
+            "morning": "hallway",
+            "afternoon": "chapel",
+            "evening": "lounge"
+        }
+    },
+    "PARKBOKEO": {
+        "default": {
+            "morning": "room004",
+            "afternoon": "room004",
+            "evening": "room004"
+        },
+        "0": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null
+        },
+        "1": {
+            "morning": "room004",
+            "afternoon": "room004",
+            "evening": "hallway"
+        },
+        "3": {
+            "morning": "room004",
+            "afternoon": "cafeteria",
+            "evening": "room004"
+        }
+    },
+    "REPORTER_LEE": {
+        "default": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null
+        },
+        "2": {
+            "morning": "umi_class",
+            "afternoon": "terrace",
+            "evening": null
+        },
+        "3": {
+            "morning": "main_hall",
+            "afternoon": "terrace",
+            "evening": "lounge"
+        }
+    },
+    "CHEONGGALCHI": {
+        "default": {
+            "morning": "cafeteria",
+            "afternoon": "lounge",
+            "evening": "room005"
+        },
+        "0": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null
+        },
+        "1": {
+            "morning": "cafeteria",
+            "afternoon": "hallway",
+            "evening": "room005"
+        },
+        "2": {
+            "morning": "lounge",
+            "afternoon": "cafeteria",
+            "evening": "room005"
+        }
+    },
+    "GWAKBINGEO": {
+        "default": {
+            "morning": "hallway",
+            "afternoon": "cafeteria",
+            "evening": "room003"
+        },
+        "0": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null
+        },
+        "1": {
+            "morning": "hallway",
+            "afternoon": "cafeteria",
+            "evening": "room003"
+        },
+        "2": {
+            "morning": "cafeteria",
+            "afternoon": "lounge",
+            "evening": "room003"
+        },
+        "3": {
+            "morning": "hallway",
+            "afternoon": "chapel",
+            "evening": "room003"
+        }
+    }
+}
