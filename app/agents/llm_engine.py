@@ -146,13 +146,8 @@ class LLMEngine:
         analysis = result.get("analysis", {})
         npc_response = result.get("response", "")
 
-        # 1) 세션 버퍼에 대화 누적
+        # 세션 버퍼에 대화 누적
         self._append_to_session(npc_id, message, npc_response, analysis)
-
-        # 2) 감정 변화 즉시 장기 기억 저장 체크
-        friendly_delta = analysis.get("friendly_delta", 0)
-        if friendly_delta < -EMOTION_TRIGGER_THRESHOLD or friendly_delta >= EMOTION_TRIGGER_THRESHOLD:
-            await self._save_emotion_triggered_memory(npc_id, message, npc_response, analysis)
 
         return result
     
@@ -204,41 +199,12 @@ class LLMEngine:
         buffer_size = len(self.session_buffers[npc_id])
         print(f"[Memory] 세션 버퍼 ({npc_id}): {buffer_size}턴 누적")
 
-    async def _save_emotion_triggered_memory(
-        self, npc_id: str, user_msg: str, npc_response: str, analysis: Dict
-    ):
-        """
-        감정 변화가 큰 대화를 즉시 장기 기억에 저장
-        조건: friendly_delta < -3 or friendly_delta >= 3
-        """
-        friendly_delta = analysis.get("friendly_delta", 0)
-        faith_delta = analysis.get("faith_delta", 0)
-        tags = ", ".join(analysis.get("reason_tags", []))
-        
-        memory_text = (
-            f"[중요 대화 - {npc_id}]\n"
-            f"플레이어: {user_msg}\n"
-            f"NPC: {npc_response}\n"
-            f"감정 변화: 호감도 {friendly_delta:+d}, 신뢰도 {faith_delta:+d}\n"
-            f"태그: {tags}"
-        )
-        
-        memory_manager.add_memory(
-            text=memory_text,
-            metadata={
-                "npc_id": npc_id,
-                "memory_type": "emotion_trigger",
-                "friendly_delta": friendly_delta,
-                "faith_delta": faith_delta,
-                "tags": tags
-            }
-        )
-        print(f"🧠 [Memory] 감정 트리거 발동! {npc_id}: friendly_delta={friendly_delta:+d} → 장기 기억 저장 완료")
+    # [REMOVED] _save_emotion_triggered_memory
 
-    async def save_day_summary(self, day_index: int, npc_id: Optional[str] = None, user_id: str = None) -> Dict[str, str]:
+    async def save_session_summary(self, day_index: int, npc_id: Optional[str] = None, user_id: str = None) -> Dict[str, str]:
         """
-        하루(세션) 종료 시 세션 버퍼의 대화를 요약하여:
-        1. Vector DB에 저장 (장기 기억용)
+        세션 종료 시 버퍼의 대화를 요약하여:
+        1. Vector DB에 저장 (장기 기억용 - session_summary)
         2. MongoDB 'day_summaries' 컬렉션에 저장 (모니터링용)
         
         Args:
@@ -295,14 +261,14 @@ class LLMEngine:
             except Exception as e:
                 print(f"⚠️ [Memory] 세션 요약 생성 실패 ({target_id}): {e}")
                 # 폴백: 요약 없이 핵심 대화만 저장
-                summary = f"Day {day_index} - {target_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
+                summary = f"Day {day_index} 세션 - {target_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
             
             # 1. Vector DB에 저장 (Memory)
             memory_manager.add_memory(
                 text=summary,
                 metadata={
                     "npc_id": target_id,
-                    "memory_type": "day_summary",
+                    "memory_type": "session_summary", # Changed from day_summary
                     "day_index": day_index,
                     "turn_count": len(buffer)
                 }
