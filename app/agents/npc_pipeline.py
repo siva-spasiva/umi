@@ -410,14 +410,18 @@ class NPCDialoguePipeline:
         self,
         user_message: str,
         analysis: Dict[str, Any],
-        context: str = ""
+        context: str = "",
+        friendly: int = None
     ) -> str:
+        # Use provided friendly or default to current state
+        target_friendly = friendly if friendly is not None else self.state.friendly
+
         # 1. Core 페르소나 (정적: PERSONALITY + SPEECH_STYLE)
-        core = self.prompt_loader.get_core_prompt(self.npc_id, self.state.friendly)
+        core = self.prompt_loader.get_core_prompt(self.npc_id, target_friendly)
         
         # 2. Dynamic 행동 규칙 (RAG 기반 검색)
         dynamic_rules = self.prompt_loader.retrieve_dynamic_rules(
-            self.npc_id, self.state.friendly, user_message, top_k=5
+            self.npc_id, target_friendly, user_message, top_k=5
         )
         
         # 3. 컨트롤 시그널
@@ -454,19 +458,35 @@ class NPCDialoguePipeline:
         history: Optional[List[Dict[str, str]]] = None,
         memory_context: Optional[str] = None,
         max_new_tokens: int = 200,
-        do_sample: bool = True
+        do_sample: bool = True,
+        update_state: bool = True,
+        forced_state: Optional[Dict] = None
     ) -> Dict[str, Any]:
         """Conversation Main Loop"""
         
         # 1. Intent Analysis
         analysis = self.analyzer.analyze(user_message)
         
-        # 2. State Update
-        self.state.apply_delta(
-            analysis["friendly_delta"],
-            analysis["faith_delta"]
-        )
+        # 2. State Update (Conditional)
+        if update_state:
+            self.state.apply_delta(
+                analysis["friendly_delta"],
+                analysis["faith_delta"]
+            )
+        else:
+            if self.debug:
+                print(f"[Pipeline] State update disabled. Delta: friendly={analysis['friendly_delta']}, faith={analysis['faith_delta']}")
         
+        # Determine Current State for Prompt Generation
+        current_friendly = self.state.friendly
+        current_faith = self.state.faith
+        
+        if forced_state:
+            current_friendly = forced_state.get("friendly", current_friendly)
+            current_faith = forced_state.get("faith", current_faith)
+            if self.debug:
+                print(f"[Pipeline] Using Forced State: friendly={current_friendly}, faith={current_faith}")
+
         # 3. RAG Retrieval (V3 style)
         context_text = ""
         if self.retriever and self.retriever.enabled:
@@ -486,7 +506,12 @@ class NPCDialoguePipeline:
                 context_text = "[USER_MEMORY]\n" + memory_context
 
         # 5. System Prompt Construction
-        system_prompt = self._build_system_prompt(user_message, analysis, context=context_text)
+        system_prompt = self._build_system_prompt(
+            user_message, 
+            analysis, 
+            context=context_text,
+            friendly=current_friendly
+        )
         
         # 6. LLM Prompt Construction (Gemma-style)
         full_prompt = f"<start_of_turn>user\n{system_prompt}<end_of_turn>\n"

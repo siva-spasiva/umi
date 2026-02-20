@@ -364,6 +364,19 @@ async def infer_ga1(req: GA1Request):
         return GA1Response(is_safe=True)
 
 
+class NPCRequest(BaseModel):
+    npc_id: str
+    message: str
+    history: Optional[List[Dict]] = None
+    memory_context: Optional[str] = None
+    update_state: bool = True
+    forced_state: Optional[Dict] = None
+
+class NPCResponse(BaseModel):
+    response: str
+    state: Optional[Dict] = None
+    analysis: Optional[Dict] = None
+
 @app.post("/infer/npc", response_model=NPCResponse)
 async def infer_npc(req: NPCRequest):
     """NPC 대화 생성 (의도 분석 + LLM)"""
@@ -393,7 +406,9 @@ async def infer_npc(req: NPCRequest):
             history=req.history,
             memory_context=req.memory_context,
             max_new_tokens=160,
-            do_sample=False
+            do_sample=False,
+            update_state=req.update_state,
+            forced_state=req.forced_state
         )
 
         return NPCResponse(

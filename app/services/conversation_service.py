@@ -48,6 +48,50 @@ class ConversationService:
 
         return history
 
+    def __init__(self):
+        self.schedule_data = {}
+        self.topics_data = {}
+        self._load_schedule()
+        self._load_topics()
+
+    def _load_topics(self):
+        """data/NPC_topics.json 로드"""
+        import json
+        import os
+        
+        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        topics_path = os.path.join(base_dir, "data", "NPC_topics.json")
+        
+        if not os.path.exists(topics_path):
+            print(f"⚠️ [Topics] File not found: {topics_path}")
+            return
+            
+        try:
+            with open(topics_path, "r", encoding="utf-8") as f:
+                self.topics_data = json.load(f)
+            print(f"[Topics] Loaded NPC topics.")
+        except Exception as e:
+            print(f"⚠️ [Topics] Load failed: {e}")
+
+    def _get_random_topic(self) -> str:
+        """NPC_topics.json에서 랜덤 주제 선정"""
+        import random
+        if not self.topics_data or "npc_dialogue_sessions" not in self.topics_data:
+            return "오늘의 날씨와 기분에 대해"
+        
+        sessions = self.topics_data["npc_dialogue_sessions"]
+        if not sessions:
+            return "서로의 안부 묻기"
+            
+        # 1. 랜덤 카테고리
+        session = random.choice(sessions)
+        # 2. 랜덤 토픽
+        if not session.get("topics"):
+            return f"{session.get('category')}에 대한 대화"
+            
+        topic = random.choice(session["topics"])
+        return f"[{session.get('category')}] {topic['title']}: {topic['summary']} (상황: {topic['context']})"
+
     @traceable(run_type="chain", name="NPC_Conversation_AutoPlay")
     async def start_auto_conversation(
         self,
@@ -57,21 +101,23 @@ class ConversationService:
     ) -> ConversationResponse:
         """
         NPC-only 자동 대화 (유저 참여 X)
-
-        NPC들이 번갈아가며 주제에 대해 num_turns만큼 대화합니다.
-        첫 번째 NPC가 주제에 대해 먼저 발언하고,
-        이후 NPC들이 이전 발언에 반응하며 대화를 이어갑니다.
-
-        Args:
-            topic: 대화 주제
-            npc_ids: 참여 NPC ID 목록
-            num_turns: 생성할 대화 턴 수
+        
+        - NPC들은 'Good' 상태(친밀도 60) 페르소나를 강제로 사용합니다.
+        - 대화 중 상태(친밀도/신뢰도)는 변하지 않습니다.
         """
+        # 랜덤 주제 선정 (입력된 topic이 'random'이거나 비어있으면)
+        if not topic or topic == "random":
+            topic = self._get_random_topic()
+            print(f"[Conversation] Random Topic Selected: {topic}")
+
         turns: List[ConversationTurn] = []
         conversation_history: List[Dict[str, str]] = [
             self._build_topic_history_entry(topic)
         ]
         collected_states: Dict[str, Dict] = {}
+        
+        # NPC 간 대화는 친밀도/신뢰도 변화 없음 & Good(60) 페르소나 강제
+        forced_state = {"friendly": 60, "faith": 60}
 
         for turn_idx in range(num_turns):
             # NPC 순서 결정 (라운드 로빈)
@@ -90,7 +136,9 @@ class ConversationService:
             result = await llm_engine.ask(
                 npc_id=current_npc_id,
                 message=message,
-                history=conversation_history
+                history=conversation_history,
+                update_state=False,        # 상태 업데이트 끔
+                forced_state=forced_state  # Good 페르소나 강제
             )
 
             npc_response = result.get("response", "")
@@ -266,7 +314,9 @@ class ConversationService:
 
     def __init__(self):
         self.schedule_data = {}
+        self.topics_data = {}
         self._load_schedule()
+        self._load_topics()
 
     def _load_schedule(self):
         """data/schedule.json 로드"""

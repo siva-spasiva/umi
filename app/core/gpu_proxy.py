@@ -70,17 +70,12 @@ class GPUProxyClient:
         npc_id: str,
         message: str,
         history: Optional[List[Dict]] = None,
-        memory_context: Optional[str] = None
+        memory_context: Optional[str] = None,
+        update_state: bool = True,
+        forced_state: Optional[Dict] = None
     ) -> Dict:
         """
         NPC 대화 생성을 GPU 서버에 위임
-
-        Returns:
-            {
-                "response": str,        # NPC 응답 텍스트
-                "analysis": Dict,       # 의도 분석 결과 (friendly_delta, faith_delta, reason_tags 등)
-                "state": Dict           # 현재 NPC 상태 (friendly, faith)
-            }
         """
         try:
             client = await self._get_client()
@@ -88,7 +83,9 @@ class GPUProxyClient:
                 "npc_id": npc_id,
                 "message": message,
                 "history": history,
-                "memory_context": memory_context
+                "memory_context": memory_context,
+                "update_state": update_state,
+                "forced_state": forced_state
             }
             response = await client.post("/infer/npc", json=payload)
             response.raise_for_status()

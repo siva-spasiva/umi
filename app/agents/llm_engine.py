@@ -79,15 +79,29 @@ class LLMEngine:
         return self.pipelines[npc_id]
 
     @traceable(run_type="llm", name="NPC_Generation")
-    async def ask(self, npc_id: str, message: str, history: Optional[List[Dict]] = None) -> Dict:
+    async def ask(
+        self, 
+        npc_id: str, 
+        message: str, 
+        history: Optional[List[Dict]] = None,
+        update_state: bool = True,
+        forced_state: Optional[Dict] = None
+    ) -> Dict:
         """
         LLM에게 페르소나와 대화 내역을 전달하여 응답을 생성합니다.
+        
+        Args:
+            npc_id: NPC ID
+            message: 유저 메시지 또는 시스템 프롬프트
+            history: 대화 내역
+            update_state: 상태 업데이트 여부 (True: 업데이트 함, False: 안함)
+            forced_state: 강제 상태 설정 (None이면 현재 상태 사용)
 
         Returns:
             {
                 "response": str,
-                "analysis": Dict,   # friendly_delta, faith_delta, reason_tags 등
-                "state": Dict       # friendly, faith
+                "analysis": Dict,
+                "state": Dict
             }
         """
         # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
@@ -99,7 +113,9 @@ class LLMEngine:
             
             result = await gpu_proxy.generate_npc_response(
                 npc_id, message, history,
-                memory_context=memory_context
+                memory_context=memory_context,
+                update_state=update_state,
+                forced_state=forced_state
             )
         else:
             try:
@@ -111,7 +127,9 @@ class LLMEngine:
                     pipeline.chat,
                     message,
                     max_new_tokens=160,
-                    do_sample=False
+                    do_sample=False,
+                    update_state=update_state,
+                    forced_state=forced_state
                 )
                 
                 result = {
