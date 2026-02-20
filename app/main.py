@@ -8,6 +8,7 @@ from app.api.v1.health_check import router as health_router
 from app.api.v1.records import router as records_router
 from app.api.v1.monitoring import router as monitoring_router
 from app.api.v1.conversation import router as conversation_router
+from app.api.v1.debug import router as debug_router
 
 # [New] 로그 설정 (매일 자정 logs/app.log.YYYY-MM-DD 생성)
 from app.core.logger import setup_daily_rotating_logger
@@ -23,3 +24,4 @@ app.include_router(inventory_router, prefix="/api/v1/inventory", tags=["inventor
 app.include_router(records_router, prefix="/api/v1/records", tags=["records"])
 app.include_router(monitoring_router, prefix="/api/v1/monitor", tags=["monitoring"])
 app.include_router(conversation_router, prefix="/api/v1", tags=["conversation"])
+app.include_router(debug_router, prefix="/api/v1", tags=["debug"])

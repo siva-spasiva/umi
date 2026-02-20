@@ -317,6 +317,29 @@ class LLMEngine:
         if npc_id in self.pipelines:
             self.pipelines[npc_id].state = NPCState(friendly=50, faith=50)
             print(f"[LLMEngine] {npc_id} 상태 초기화")
+
+    def set_npc_state(self, npc_id: str, friendly: int, faith: int):
+        """NPC 상태 강제 설정 (Debug용)"""
+        try:
+            # 강제로 생성 활성화 (잠시)
+            original_enabled = self.agent.generation_enabled
+            self.agent.generation_enabled = True
+            
+            # 파이프라인이 없으면 생성
+            _ = self._get_or_create_pipeline(npc_id)
+            
+            # 원복
+            self.agent.generation_enabled = original_enabled
+            
+            if npc_id in self.pipelines:
+                self.pipelines[npc_id].state.friendly = friendly
+                self.pipelines[npc_id].state.faith = faith
+                print(f"[LLMEngine] {npc_id} 상태 강제 설정: Friendly={friendly}, Faith={faith}")
+            else:
+                print(f"⚠️ [LLMEngine] {npc_id} 파이프라인 생성 실패, 상태 설정 불가")
+        except Exception as e:
+            print(f"⚠️ [LLMEngine] set_npc_state 중 오류: {e}")
+            # 에러를 다시 던지지 않고 로그만 남김 (테스트 중단 방지)
             
     async def save_long_term_memory(self, npc_id: str, history: List[Dict]):
         """
