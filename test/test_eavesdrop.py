@@ -59,20 +59,20 @@ async def test_room_with_eavesdrop(client: httpx.AsyncClient):
     
     assert eavesdrop["can_eavesdrop_more"] == True
     assert len(eavesdrop["npcs"]) >= 2
-    assert len(eavesdrop["conversation"]["turns"]) == 3
-    print("✅ Test 3: 엿듣기 대화 3턴 생성 확인!")
+    assert len(eavesdrop["conversation"]["turns"]) == 6
+    print("✅ Test 3: 엿듣기 대화 6턴 생성 확인!")
 
 
 async def test_eavesdrop_more(client: httpx.AsyncClient):
-    """POST /eavesdrop으로 추가 엿듣기"""
+    """POST /eavesdrop으로 추가 엿듣기 (day/session/room만 전달)"""
     payload = {
-        "npc_ids": ["jeonggwangeo", "gwakbingeo"],
-        "topic": "상납금과 충성 경쟁: 교주를 향한 과잉 충성",
-        "num_turns": 6
+        "day_index": 3,
+        "session_index": 2,
+        "room_id": "chapel"
     }
     
     response = await client.post("/api/v1/map/eavesdrop", json=payload)
-    assert response.status_code == 200
+    assert response.status_code == 200, f"API 호출 실패: {response.text}"
     data = response.json()
     
     print("\n====== [ Test 4: 추가 엿듣기 (POST /eavesdrop) ] ======")
@@ -83,8 +83,8 @@ async def test_eavesdrop_more(client: httpx.AsyncClient):
         print(f"  [{turn['speaker']}] {turn['content'][:80]}...")
     
     assert data["can_eavesdrop_more"] == True
-    assert len(conv["turns"]) == 3
-    print("✅ Test 4: 추가 엿듣기 3턴 생성 확인!")
+    assert len(conv["turns"]) == 6
+    print("✅ Test 4: 추가 엿듣기 6턴 생성 확인!")
 
 
 async def main():
