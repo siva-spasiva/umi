@@ -143,8 +143,16 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
         
         # [NEW] 다음 세션 계산 및 맵(NPC 위치 및 주제) 설정
         from app.services.schedule_service import schedule_service
+        from app.core.database import db
         next_day, next_session = schedule_service.get_next_session_info(request.day_index, request.session_index)
         next_map_config = await schedule_service.generate_map_config(next_day, next_session)
+        
+        # [NEW] 다음 세션 맵 상태를 MongoDB에 저장 (room API에서 읽어감)
+        await db["session_map_state"].update_one(
+            {"day_index": next_day, "session_index": next_session},
+            {"$set": next_map_config},
+            upsert=True
+        )
         
         if not summaries:
             return {

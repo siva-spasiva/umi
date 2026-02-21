@@ -49,9 +49,7 @@ class ConversationService:
         return history
 
     def __init__(self):
-        self.schedule_data = {}
         self.topics_data = {}
-        self._load_schedule()
         self._load_topics()
 
     def _load_topics(self):
@@ -351,31 +349,7 @@ class ConversationService:
         return states
         return states
 
-    def __init__(self):
-        self.schedule_data = {}
-        self.topics_data = {}
-        self._load_schedule()
-        self._load_topics()
 
-    def _load_schedule(self):
-        """data/schedule.json 로드"""
-        import json
-        import os
-        
-        # 프로젝트 루트 경로 추정 (app/services/.. -> ../../)
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        schedule_path = os.path.join(base_dir, "data", "schedule.json")
-        
-        if not os.path.exists(schedule_path):
-            print(f"⚠️ [Schedule] File not found: {schedule_path}")
-            return
-            
-        try:
-            with open(schedule_path, "r", encoding="utf-8") as f:
-                self.schedule_data = json.load(f)
-            print(f"[Schedule] Loaded {len(self.schedule_data)} NPCs schedules.")
-        except Exception as e:
-            print(f"⚠️ [Schedule] Load failed: {e}")
 
     async def trigger_scheduled_conversations(
         self,
@@ -383,37 +357,25 @@ class ConversationService:
         session: str
     ) -> List[ConversationResponse]:
         """
-        스케줄 기반 NPC 자동 대화 트리거
+        스케줄 기반 NPC 자동 대화 트리거 (MongoDB 기반)
         
-        1. 스케줄 로드 (init에서 수행됨)
-        2. NPC별 현재(Day, Session) 위치 파악
-        3. 동일 장소에 있는 NPC 그룹화
-        4. 2명 이상 모인 그룹에 대해 start_auto_conversation 실행
-        5. 결과 저장 (장기 기억)
+        1. ScheduleService를 통해 MongoDB에서 NPC 위치 조회
+        2. 동일 장소에 있는 NPC 그룹화
+        3. 2명 이상 모인 그룹에 대해 start_auto_conversation 실행
+        4. 결과 저장 (장기 기억)
         """
-        if not self.schedule_data:
-            self._load_schedule()
-
-        schedule_data = self.schedule_data
-        location_map: Dict[str, List[str]] = {} # {location: [npc_ids]}
+        from app.services.schedule_service import schedule_service
         
-        # 1. 위치 파악 및 그룹화
-        for npc_id, schedule in schedule_data.items():
-            # Day별 스케줄 확인 (없으면 default)
-            day_key = str(day_index)
-            daily_schedule = schedule.get(day_key, schedule.get("default", {}))
-            
-            # Session별 위치 확인
-            location = daily_schedule.get(session)
-            
-            if location:
-                if location not in location_map:
-                    location_map[location] = []
-                location_map[location].append(npc_id)
+        # session 문자열을 인덱스로 변환
+        session_to_idx = {"morning": 1, "afternoon": 2, "evening": 3, "night": 4}
+        session_idx = session_to_idx.get(session, 1)
+        
+        # MongoDB에서 NPC 위치 그룹 조회
+        location_map = await schedule_service.map_npc_locations(day_index, session_idx)
                 
         results = []
         
-        # 2. 그룹별 대화 생성
+        # 그룹별 대화 생성
         for location, npc_ids in location_map.items():
             if len(npc_ids) < 2:
                 continue
@@ -424,15 +386,13 @@ class ConversationService:
             topic = f"{location}에서의 상황과 서로의 안부"
             
             # 대화 생성
-            # TODO: num_turns, topic 등을 좀 더 다채롭게?
             response = await self.start_auto_conversation(
                 topic=topic,
                 npc_ids=npc_ids,
                 num_turns=5
             )
             
-            # 3. 장기 기억 저장 (Observer Memory)
-            # 이 대화는 '누군가(아마도 플레이어?)가 목격함' 혹은 '전지적 시점'으로 저장
+            # 장기 기억 저장 (Observer Memory)
             conversation_text = f"[Event: {day_index}일차 {session} @ {location}]\n"
             conversation_text += f"참여자: {', '.join(npc_ids)}\n"
             for turn in response.turns:
@@ -445,14 +405,14 @@ class ConversationService:
 
             from app.core.memory import memory_manager
             memory_manager.add_memory(
-                text=summary, # 요약된 내용을 임베딩 및 저장
+                text=summary,
                 metadata={
                     "memory_type": "scheduled_event",
                     "day_index": day_index,
                     "session": session,
                     "location": location,
                     "participants": npc_ids,
-                    "full_log": conversation_text # 원본 대화는 메타데이터에 보관
+                    "full_log": conversation_text
                 }
             )
             print(f"[Schedule] 대화 저장 완료 ({location})")
