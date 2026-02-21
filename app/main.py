@@ -10,6 +10,8 @@ from app.api.v1.monitoring import router as monitoring_router
 from app.api.v1.conversation import router as conversation_router
 from app.api.v1.debug import router as debug_router
 
+from app.api.v1.map import router as map_router
+
 # [New] 로그 설정 (매일 자정 logs/app.log.YYYY-MM-DD 생성)
 from app.core.logger import setup_daily_rotating_logger
 setup_daily_rotating_logger("api_server", "logs/app.log", capture_uvicorn=True)
@@ -25,3 +27,4 @@ app.include_router(records_router, prefix="/api/v1/records", tags=["records"])
 app.include_router(monitoring_router, prefix="/api/v1/monitor", tags=["monitoring"])
 app.include_router(conversation_router, prefix="/api/v1", tags=["conversation"])
 app.include_router(debug_router, prefix="/api/v1", tags=["debug"])
+app.include_router(map_router, prefix="/api/v1/map", tags=["map"])
