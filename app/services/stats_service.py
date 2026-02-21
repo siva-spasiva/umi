@@ -83,12 +83,14 @@ class StatsService(BaseService):
             with open(file_path, "r", encoding="utf-8") as f:
                 npc_data_map = json.load(f)
                 npc_documents = []
-                for npc_name, stats in npc_data_map.items():
+                for npc_name, char_info in npc_data_map.items():
+                    npc_stats = char_info.get("stats", {})
                     npc_documents.append({
                         "user_id": user_id,
                         "npcId": npc_name,  # believer_a, friend 등
-                        "friendly": stats.get("friendly", 0),
-                        "faith": stats.get("faith", 0),
+                        "friendly": npc_stats.get("friendly", 0),
+                        "faith": npc_stats.get("faith", 0),
+                        "fishLevel": npc_stats.get("fishLevel", 0),
                         "created_at": datetime.now()
                     })
                 if npc_documents:

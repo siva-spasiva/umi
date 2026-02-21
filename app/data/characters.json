@@ -6,7 +6,8 @@
     "role": "believer",
     "stats": {
       "friendly": 30,
-      "faith": 70
+      "faith": 70,
+      "fishLevel": 1
     }
   },
   "cheonggalchi": {
@@ -16,7 +17,8 @@
     "role": "believer",
     "stats": {
       "friendly": 50,
-      "faith": 50
+      "faith": 50,
+      "fishLevel": 2
     }
   },
   "parkbok": {
@@ -26,7 +28,8 @@
     "role": "believer",
     "stats": {
       "friendly": 40,
-      "faith": 60
+      "faith": 60,
+      "fishLevel": 4
     }
   },
   "jeongwang": {
@@ -36,7 +39,8 @@
     "role": "leader",
     "stats": {
       "friendly": 30,
-      "faith": 90
+      "faith": 90,
+      "fishLevel": 5
     }
   },
   "mineo": {
@@ -46,7 +50,8 @@
     "role": "reporter",
     "stats": {
       "friendly": 30,
-      "faith": 30
+      "faith": 30,
+      "fishLevel": 0
     }
   }
 }
