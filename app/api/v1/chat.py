@@ -110,6 +110,7 @@ async def get_story_summary(day_index: int, user_id: str = Depends(get_current_u
 class EndSessionRequest(BaseModel):
     """세션 종료 요청"""
     day_index: int
+    session_index: int
     npc_id: Optional[str] = None
 
 
@@ -123,9 +124,20 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
     - 현재까지의 대화 내용을 요약하여 장기 기억에 저장합니다.
     - session_summary 타입으로 저장됩니다.
     
-    - day_index: 게임 내 일차 (1~7)
+    - day_index: 게임 내 일차 (1~5)
+    - session_index: 일차 내 세션 인덱스 (1~4)
     - npc_id: NPC 식별자 (선택 사항. 생략 시 현재 세션 버퍼가 있는 모든 NPC 처리)
     """
+    if request.day_index > 5:
+        raise HTTPException(status_code=400, detail="day_index는 최대 5일까지만 가능합니다.")
+        
+    if request.session_index > 4:
+        raise HTTPException(status_code=400, detail="session_index는 최대 4(하루 4세션)까지만 가능합니다.")
+        
+    if request.session_index == 4:
+        # TODO: 하루의 마지막(4번째) 세션이 종료되었습니다. 다음 날(day)로 넘어가는 처리/초기화 로직을 여기에 작성해야 합니다.
+        pass
+
     try:
         summaries = await llm_engine.save_session_summary(request.day_index, request.npc_id, user_id)
         
@@ -133,12 +145,14 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
             return {
                 "status": "skipped",
                 "message": "대화 내역이 없어 요약을 생략했습니다.",
-                "day_index": request.day_index
+                "day_index": request.day_index,
+                "session_index": request.session_index
             }
         
         return {
             "status": "success",
             "day_index": request.day_index,
+            "session_index": request.session_index,
             "summaries": summaries
         }
     except Exception as e:
