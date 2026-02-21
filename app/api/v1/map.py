@@ -32,7 +32,7 @@ async def get_room(
     """
     특정 층의 특정 방 데이터를 반환합니다.
     day_index와 session_index를 함께 전달하면, end-session에서 미리 저장해 둔
-    NPC 배치 및 토픽 정보를 기반으로 엿듣기(eavesdrop) 대화를 생성합니다.
+    NPC 배치 및 토픽 정보를 기반으로 엿듣기(eavesdrop) 대화 6턴을 생성합니다.
     """
     room = await map_service.get_room(floor_id, room_id)
     if not room:
@@ -40,7 +40,6 @@ async def get_room(
     
     response = {"room": room, "eavesdrop": None}
     
-    # day_index, session_index가 있으면 MongoDB에서 저장된 맵 상태 조회
     if day_index is not None and session_index is not None:
         session_state = await db["session_map_state"].find_one(
             {"day_index": day_index, "session_index": session_index},
@@ -48,7 +47,6 @@ async def get_room(
         )
         
         if session_state:
-            # 저장된 room_placements에서 현재 방에 해당하는 배치 정보를 찾기
             room_placement = None
             for placement in session_state.get("room_placements", []):
                 if placement.get("room_id") == room_id:
@@ -57,18 +55,14 @@ async def get_room(
             
             if room_placement and len(room_placement.get("npcs", [])) >= 2 and room_placement.get("topic"):
                 topic_data = room_placement["topic"]
-                topic_title = topic_data.get("title", "")
-                topic_context = topic_data.get("context", "")
-                topic_text = f"{topic_title}: {topic_context}"
-                
-                # NPC ID를 소문자로 변환 (conversation_service 호환)
+                topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
                 npc_ids_lower = [npc.lower() for npc in room_placement["npcs"]]
                 
                 try:
                     conversation = await conversation_service.start_auto_conversation(
                         topic=topic_text,
                         npc_ids=npc_ids_lower,
-                        num_turns=3
+                        num_turns=6
                     )
                     
                     response["eavesdrop"] = {
@@ -85,27 +79,45 @@ async def get_room(
 
 
 class EavesdropRequest(BaseModel):
-    """추가 엿듣기 요청"""
-    npc_ids: List[str] = Field(..., description="참여 NPC ID 목록")
-    topic: str = Field(..., description="대화 주제")
-    history: Optional[List[Dict[str, Any]]] = Field(
-        default=None,
-        description="이전 엿듣기 대화 턴들 (speaker, content)"
-    )
-    num_turns: int = Field(default=3, description="추가 엿듣기 턴 수", ge=1, le=10)
+    """추가 엿듣기 요청 — 방 정보만 넘기면 서버가 알아서 처리"""
+    day_index: int = Field(..., description="현재 게임 일차")
+    session_index: int = Field(..., description="현재 세션 인덱스")
+    room_id: str = Field(..., description="엿듣기 중인 방 ID")
 
 
 @router.post("/eavesdrop", summary="추가 엿듣기")
 async def eavesdrop_more(request: EavesdropRequest):
     """
     NPC 대화를 추가로 엿듣습니다.
-    이전 대화 히스토리를 전달하면 맥락을 유지하여 이어서 대화를 생성합니다.
+    day_index, session_index, room_id만 전달하면 서버가 session_map_state에서
+    해당 방의 NPC와 토픽을 읽어 새로운 6턴 대화를 생성합니다.
     """
+    session_state = await db["session_map_state"].find_one(
+        {"day_index": request.day_index, "session_index": request.session_index},
+        {"_id": 0}
+    )
+    
+    if not session_state:
+        raise HTTPException(status_code=404, detail="해당 세션의 맵 정보가 없습니다.")
+    
+    room_placement = None
+    for placement in session_state.get("room_placements", []):
+        if placement.get("room_id") == request.room_id:
+            room_placement = placement
+            break
+    
+    if not room_placement or len(room_placement.get("npcs", [])) < 2 or not room_placement.get("topic"):
+        raise HTTPException(status_code=404, detail="이 방에서 엿들을 수 있는 대화가 없습니다.")
+    
+    topic_data = room_placement["topic"]
+    topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
+    npc_ids_lower = [npc.lower() for npc in room_placement["npcs"]]
+    
     try:
         conversation = await conversation_service.start_auto_conversation(
-            topic=request.topic,
-            npc_ids=request.npc_ids,
-            num_turns=request.num_turns
+            topic=topic_text,
+            npc_ids=npc_ids_lower,
+            num_turns=6
         )
         return {
             "conversation": conversation.model_dump(),
@@ -114,4 +126,3 @@ async def eavesdrop_more(request: EavesdropRequest):
     except Exception as e:
         print(f"[ERROR] eavesdrop: {e}")
         raise HTTPException(status_code=500, detail=f"엿듣기 생성 중 오류: {str(e)}")
-
