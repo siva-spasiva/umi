@@ -8,7 +8,7 @@ from app.core.security import create_access_token, verify_token, create_refresh_
 
 
 class StatsService(BaseService):
-    characters = ["believer_a", "believer_b", "believer_c", "friend", "reporter", "leader"]
+    characters = ["believer_a", "believer_b", "believer_c", "friend", "mineo", "leader"]
 
     def __init__(self):
         super().__init__()

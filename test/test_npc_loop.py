@@ -5,7 +5,7 @@ import sys
 
 # Configuration
 API_URL = "http://localhost:8001"
-NPC_IDS = ["gwakbing", "cheonggalchi", "bakbok", "jeongwang", "reporter"]
+NPC_IDS = ["gwakbing", "cheonggalchi", "bakbok", "jeongwang", "mineo"]
 MAX_TURNS = 7
 
 # Predefined user scenarios for 7 turns

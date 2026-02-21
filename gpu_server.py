@@ -410,6 +410,7 @@ async def infer_npc(req: NPCRequest):
             update_state=req.update_state,
             forced_state=req.forced_state
         )
+        print(f"[DEBUG] infer_npc: update_state={req.update_state}, forced_state={req.forced_state}")
 
         return NPCResponse(
             response=result["npc_response"],

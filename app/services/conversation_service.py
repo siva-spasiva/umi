@@ -55,11 +55,13 @@ class ConversationService:
         self._load_topics()
 
     def _load_topics(self):
-        """data/NPC_topics.json 로드"""
+        """data/NPC_topics.json 로드 및 VectorDB 인덱싱"""
         import json
         import os
+        from app.core.memory import memory_manager
+        from langchain_core.documents import Document
         
-        base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         topics_path = os.path.join(base_dir, "data", "NPC_topics.json")
         
         if not os.path.exists(topics_path):
@@ -69,28 +71,64 @@ class ConversationService:
         try:
             with open(topics_path, "r", encoding="utf-8") as f:
                 self.topics_data = json.load(f)
-            print(f"[Topics] Loaded NPC topics.")
+            print(f"[Topics] Loaded NPC topics JSON.")
+            
+            # VectorDB Indexing Check
+            TOPIC_COLLECTION = "npc_topics"
+            count = memory_manager.count(collection_name=TOPIC_COLLECTION)
+            
+            if count == 0:
+                print(f"[Topics] Indexing topics to VectorDB ({TOPIC_COLLECTION})...")
+                docs = []
+                if "npc_dialogue_sessions" in self.topics_data:
+                    for session in self.topics_data["npc_dialogue_sessions"]:
+                        category = session.get("category", "General")
+                        for topic in session.get("topics", []):
+                            # 메타데이터 구성
+                            meta = {
+                                "topic_id": str(topic.get("id")),
+                                "category": category,
+                                "context": topic.get("context", "")
+                            }
+                            # 검색될 텍스트 구성 (Title + Description + Context)
+                            text = f"[{category}] {topic.get('title')}: {topic.get('summary')}\n상황: {topic.get('context')}"
+                            docs.append(Document(page_content=text, metadata=meta))
+                
+                if docs:
+                    memory_manager.add_documents(docs, collection_name=TOPIC_COLLECTION)
+                    print(f"[Topics] Indexed {len(docs)} topics.")
+            else:
+                print(f"[Topics] VectorDB already has {count} topics indexed.")
+                
         except Exception as e:
-            print(f"⚠️ [Topics] Load failed: {e}")
+            print(f"⚠️ [Topics] Load/Index failed: {e}")
 
-    def _get_random_topic(self) -> str:
-        """NPC_topics.json에서 랜덤 주제 선정"""
+    def _get_topic_from_vectordb(self, query: str = None) -> str:
+        """VectorDB에서 주제 검색 (Retrieval-based)"""
         import random
-        if not self.topics_data or "npc_dialogue_sessions" not in self.topics_data:
-            return "오늘의 날씨와 기분에 대해"
+        from app.core.memory import memory_manager
         
-        sessions = self.topics_data["npc_dialogue_sessions"]
-        if not sessions:
+        TOPIC_COLLECTION = "npc_topics"
+        
+        # 쿼리가 없으면 랜덤성을 위해 섞은 키워드 사용
+        if not query or query == "random":
+            keywords = ["비밀", "의심", "탈출", "신체 변이", "교주", "식량", "외부인", "바다", "축복"]
+            query = f"흥미로운 대화 주제, {random.choice(keywords)}"
+            
+        try:
+            retriever = memory_manager.get_retriever(k=5, collection_name=TOPIC_COLLECTION)
+            results = retriever.invoke(query)
+            
+            if not results:
+                return "오늘의 날씨와 기분에 대해"
+                
+            # 검색 결과 중 랜덤 선택 (다양성)
+            selected_doc = random.choice(results)
+            return selected_doc.page_content
+            
+        except Exception as e:
+            print(f"⚠️ [Topics] Retrieval failed: {e}")
             return "서로의 안부 묻기"
-            
-        # 1. 랜덤 카테고리
-        session = random.choice(sessions)
-        # 2. 랜덤 토픽
-        if not session.get("topics"):
-            return f"{session.get('category')}에 대한 대화"
-            
-        topic = random.choice(session["topics"])
-        return f"[{session.get('category')}] {topic['title']}: {topic['summary']} (상황: {topic['context']})"
 
     @traceable(run_type="chain", name="NPC_Conversation_AutoPlay")
     async def start_auto_conversation(
@@ -104,11 +142,12 @@ class ConversationService:
         
         - NPC들은 'Good' 상태(친밀도 60) 페르소나를 강제로 사용합니다.
         - 대화 중 상태(친밀도/신뢰도)는 변하지 않습니다.
+        - Topic이 없으면 VectorDB에서 검색하여 선정합니다.
         """
         # 랜덤 주제 선정 (입력된 topic이 'random'이거나 비어있으면)
         if not topic or topic == "random":
-            topic = self._get_random_topic()
-            print(f"[Conversation] Random Topic Selected: {topic}")
+            topic = self._get_topic_from_vectordb(query="random")
+            print(f"[Conversation] Retrieved Topic: {topic}")
 
         turns: List[ConversationTurn] = []
         conversation_history: List[Dict[str, str]] = [

@@ -468,6 +468,7 @@ class NPCDialoguePipeline:
         analysis = self.analyzer.analyze(user_message)
         
         # 2. State Update (Conditional)
+        print(f"[Pipeline] chat called with update_state={update_state}, forced_state={forced_state}")
         if update_state:
             self.state.apply_delta(
                 analysis["friendly_delta"],

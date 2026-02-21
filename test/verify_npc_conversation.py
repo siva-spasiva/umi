@@ -5,6 +5,11 @@ import time
 def test_npc_conversation():
     url = "http://127.0.0.1:8000/api/v1/conversation/start"
     
+    headers = {
+        "Authorization": "Bearer magic_token_for_test",
+        "Content-Type": "application/json"
+    }
+    
     payload = {
         "topic": "random",
         "npc_ids": ["NPC_CHEONG_02", "NPC_KWAK_01"],
@@ -16,11 +21,13 @@ def test_npc_conversation():
     
     try:
         start_time = time.time()
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, headers=headers)
         elapsed = time.time() - start_time
         
         response.raise_for_status()
         data = response.json()
+        if isinstance(data, list):
+            data = data[0]
         
         print(f"\n✅ Success! ({elapsed:.2f}s)")
         print(f"Topic: {data.get('topic')}")
