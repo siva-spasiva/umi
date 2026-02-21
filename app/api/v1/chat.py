@@ -141,19 +141,26 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
     try:
         summaries = await llm_engine.save_session_summary(request.day_index, request.npc_id, user_id)
         
+        # [NEW] 다음 세션 계산 및 맵(NPC 위치 및 주제) 설정
+        from app.services.schedule_service import schedule_service
+        next_day, next_session = schedule_service.get_next_session_info(request.day_index, request.session_index)
+        next_map_config = await schedule_service.generate_map_config(next_day, next_session)
+        
         if not summaries:
             return {
                 "status": "skipped",
                 "message": "대화 내역이 없어 요약을 생략했습니다.",
                 "day_index": request.day_index,
-                "session_index": request.session_index
+                "session_index": request.session_index,
+                "next_session_map": next_map_config
             }
         
         return {
             "status": "success",
             "day_index": request.day_index,
             "session_index": request.session_index,
-            "summaries": summaries
+            "summaries": summaries,
+            "next_session_map": next_map_config
         }
     except Exception as e:
         print(f"[ERROR] end-session: {e}")
