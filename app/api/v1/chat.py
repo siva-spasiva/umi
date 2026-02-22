@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from app.schemas.chat import DayLog, ChatRequest, ChatResponse
-from app.schemas.story import StorySummary
+from app.schemas.story import StorySummary, EpilogueResponse
 
 from app.services.chat_service import chat_service
 from app.agents.llm_engine import llm_engine
@@ -176,3 +176,31 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"세션 요약 저장 중 오류 발생: {str(e)}"
         )
+
+
+@router.post("/ending", response_model=EpilogueResponse,
+             summary="최종 엔딩(에필로그) 생성 및 조회",
+             description="1~5일차의 모든 일기를 분석하여 게임의 최종 엔딩을 생성합니다. 5일차 일기 생성 후 자동으로 호출되기도 하지만, 수동으로 재생성하거나 조회할 때 사용합니다."
+             )
+async def generate_game_ending(user_id: str = Depends(get_current_user_id)):
+    """최종 엔딩 생성 API"""
+    try:
+        return await chat_service.create_ending(user_id)
+    except Exception as e:
+        print(f"[ERROR] generate-ending: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"엔딩 생성 중 오류 발생: {str(e)}"
+        )
+
+
+@router.get("/epilogue", response_model=EpilogueResponse,
+            summary="저장된 엔딩 조회",
+            description="이미 생성되어 저장된 최종 엔딩 데이터를 조회합니다."
+            )
+async def get_game_epilogue(user_id: str = Depends(get_current_user_id)):
+    """저장된 엔딩 조회 API"""
+    ending = await chat_service.db["game_endings"].find_one({"user_id": user_id})
+    if not ending:
+        raise HTTPException(status_code=404, detail="생성된 엔딩이 없습니다. /ending을 먼저 호출하세요.")
+    return ending

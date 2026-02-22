@@ -197,8 +197,18 @@ class ChatService(BaseService):
         # 4. 저장 (StorySummary 객체 변환 후)
         # 딕셔너리를 바로 저장해도 되지만 검증을 위해 변환
         try:
+            summary_data_dict["user_id"] = user_id
             summary_obj = StorySummary(**summary_data_dict)
             await self.save_story_summary(summary_obj)
+            
+            # [NEW] 5일차인 경우 엔딩 자동 생성 트리거
+            if day_index == 5:
+                print(f"🏁 [Chat] Day 5 reached for {user_id}. Triggering Epilogue...")
+                try:
+                    await self.create_ending(user_id)
+                except Exception as ending_err:
+                    print(f"⚠️ [Chat] 엔딩 자동 생성 실패: {ending_err}")
+
             return summary_obj
         except Exception as e:
             print(f"[ChatService] Validation Failed: {e}")
@@ -211,10 +221,9 @@ class ChatService(BaseService):
         # model_dump(by_alias=True)를 사용해야 'with' 필드가 제대로 저장됩니다.
         doc = summary_data.model_dump(by_alias=True)
 
-        # 중복 저장 방지 (day_index 기준 upsert)
-        # [REFACTOR] story_summaries -> story_diary
+        # 중복 저장 방지 (user_id & day_index 기준 upsert)
         result = await self.db["story_diary"].update_one(
-            {"day_index": doc["day_index"]},
+            {"user_id": doc["user_id"], "day_index": doc["day_index"]},
             {"$set": doc},
             upsert=True
         )
@@ -320,5 +329,51 @@ class ChatService(BaseService):
                 "troll_count": 0
             }}
         )
+
+    async def create_ending(self, user_id: str):
+        """
+        1~5일차의 모든 일기를 수집하여 최종 엔딩(에필로그)을 생성합니다.
+        """
+        from app.agents.story_agent import story_agent
+        from app.schemas.story import EpilogueResponse
+
+        # 1. 1~5일차의 모든 일기(Diary) 조회
+        diaries = []
+        cursor = self.db["story_diary"].find(
+            {"user_id": user_id, "day_index": {"$lte": 5}}
+        ).sort("day_index", 1)
+        
+        summaries = await cursor.to_list(length=5)
+        for s in summaries:
+            diary_data = s.get("diary", {})
+            diaries.append({
+                "day": s.get("day_index"),
+                "title": diary_data.get("title"),
+                "text": diary_data.get("text")
+            })
+
+        if not diaries:
+            raise Exception("엔딩을 생성할 일기 데이터가 없습니다.")
+
+        # 2. StoryAgent 호출 (EPILOGUE 모드)
+        ending_dict = await story_agent.generate_story_content(mode="EPILOGUE", data=diaries)
+        
+        if "error" in ending_dict:
+            raise Exception(f"Failed to generate ending: {ending_dict['error']}")
+            
+        # 3. 저장 및 반환
+        try:
+            ending_dict["user_id"] = user_id
+            ending_obj = EpilogueResponse(**ending_dict)
+            
+            await self.db["game_endings"].update_one(
+                {"user_id": user_id},
+                {"$set": ending_obj.model_dump()},
+                upsert=True
+            )
+            return ending_obj
+        except Exception as e:
+            print(f"[ChatService] Ending Validation Failed: {e}")
+            raise e
 
 chat_service = ChatService()

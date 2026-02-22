@@ -3,6 +3,7 @@ import torch
 import httpx
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from peft import PeftModel
+from typing import Any, Dict
 from app.core.config import settings
 
 class StoryAgent:
@@ -98,16 +99,21 @@ class StoryAgent:
             if self.adapter_path and os.path.sep in self.adapter_path:
                 print(f"   👉 (힌트) 로컬 경로 '{self.adapter_path}'가 정확한지 확인하세요. (현재 실행 위치: {os.getcwd()})")
 
-    def generate(self, prompt: str, max_new_tokens: int = 256) -> str:
-        """프롬프트를 입력받아 텍스트를 생성합니다."""
+    async def generate(self, prompt: str, max_new_tokens: int = 256, temperature: float = 0.7, top_p: float = 0.9) -> str:
+        """프롬프트를 입력받아 텍스트를 생성합니다 (비동기)."""
         # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
         if settings.USE_GPU_PROXY:
             try:
                 server_url = settings.GPU_SERVER_URL.rstrip("/")
-                with httpx.Client(timeout=settings.GPU_PROXY_TIMEOUT) as client:
-                    response = client.post(
+                async with httpx.AsyncClient(timeout=settings.GPU_PROXY_TIMEOUT) as client:
+                    response = await client.post(
                         f"{server_url}/infer/story",
-                        json={"prompt": prompt, "max_new_tokens": max_new_tokens}
+                        json={
+                            "prompt": prompt, 
+                            "max_new_tokens": max_new_tokens,
+                            "temperature": temperature,
+                            "top_p": top_p
+                        }
                     )
                     response.raise_for_status()
                     return response.json()["text"]
@@ -116,25 +122,24 @@ class StoryAgent:
                 return "시스템: GPU 서버에 연결할 수 없습니다."
 
         try:
-            # device_map="auto" 사용 시 모델이 여러 GPU에 걸쳐 있을 수 있으므로, 첫 번째 레이어의 장치를 따라갑니다.
-            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-            
-            with torch.no_grad():
-                outputs = self.model.generate(
-                    **inputs,
-                    max_new_tokens=max_new_tokens,
-                    temperature=0.7,
-                    top_p=0.9,
-                    do_sample=True,
-                    repetition_penalty=1.05,
-                    eos_token_id=self.tokenizer.eos_token_id,
-                    pad_token_id=self.tokenizer.eos_token_id
-                )
-            
-            generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-            
-            # 입력 프롬프트 이후의 생성된 텍스트만 반환
-            return generated_text[len(prompt):].strip()
+            # 로컬 생성 (비동기 실행을 위해 스레드 풀 사용)
+            def _sync_generate():
+                inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+                with torch.no_grad():
+                    outputs = self.model.generate(
+                        **inputs,
+                        max_new_tokens=max_new_tokens,
+                        temperature=temperature,
+                        top_p=top_p,
+                        do_sample=True if temperature > 0 else False,
+                        repetition_penalty=1.05,
+                        eos_token_id=self.tokenizer.eos_token_id,
+                        pad_token_id=self.tokenizer.eos_token_id
+                    )
+                generated_text = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+                return generated_text[len(prompt):].strip()
+
+            return await asyncio.to_thread(_sync_generate)
             
         except Exception as e:
             print(f"[ERROR] StoryAgent 생성 오류: {e}")
@@ -142,77 +147,143 @@ class StoryAgent:
 
     def generate_diary(self, messages, fish_level=3, max_new_tokens=400) -> str:
         """
-        [Legacy] 하루의 대화 로그를 바탕으로 일기(스토리 요약)를 작성합니다. 
-        단순 텍스트 반환용.
+        [Legacy] 하루의 대화 로그를 바탕으로 일기를 작성합니다 (동기 호환용).
+        기존 LLMEngine 등에서 호출할 수 있으므로 유지하되, 내부적으로는 asyncio.run 등 주의 필요.
         """
-        # ... (Existing implementation kept for backward compatibility if needed, or replace if not used)
-        # For now, I will keep it as is or maybe deprecate it. 
-        # But the user wants /diary to return Struct.
-        # Let's implement generate_diary_summary instead.
-        pass
+        # [TODO] LLMEngine을 async로 전환하는 것이 좋지만, 일단 이 메서드는 async를 호출하도록 구현
+        try:
+            import asyncio
+            return asyncio.run(self.generate(messages, max_new_tokens))
+        except Exception:
+            return "일기 생성 실패"
 
-    def generate_diary_summary(self, messages: str, day_index: int, fish_level: int = None) -> dict:
+    async def _get_system_prompt(self) -> str:
+        """MongoDB에서 스토리 에이전트 전용 시스템 프롬프트를 가져옵니다."""
+        from app.core.database import db
+        doc = await db["agent_prompts"].find_one({"_id": "story_agent"})
+        if doc and "system" in doc:
+            return doc["system"]
+        
+        # Fallback (DB에 없는 경우 기존 코드 기반 프롬프트)
+        return (
+            "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
+            "Your role is record keeping only.\n"
+            "Output JSON ONLY."
+        )
+
+    async def generate_story_content(self, mode: str, data: Any) -> Dict:
         """
-        하루의 대화 로그를 바탕으로 StorySummary 스키마에 맞는 JSON을 생성합니다.
+        새로운 요구사항에 맞춘 통합 생성 메서드.
+        mode: "DIARY" | "EPILOGUE"
+        data: DIARY인 경우 메시지 텍스트, EPILOGUE인 경우 지난 일기들의 목록
         """
         import json
-        from app.schemas.story import StorySummary
-
-        if fish_level is None:
-            # fish_level이 없으면 day_index에 따라 비례 증가 (최대 5)
-            fish_level = min(day_index + 1, 5)
-
-        # Prompt Construction
-        system_prompt = (
-            "You are the Story Agent for the text-based infiltration investigation game Project: UMI_PROTOCOL. "
-            "Input is the daily conversation log (messages), and you must write ONLY a 'Diary' based on it. "
-            "Tone must be dark, anxious, and dry like an undercover investigation record. "
-            "No bright/warm/hopeful expressions. "
-            "Higher fish_level reflects more sensory distortion (fisheye lens, fishy smell, auditory distortion). "
-            "Output ONLY the 'Diary Body Text', not JSON."
+        
+        # 1. 시스템 프롬프트 가져오기
+        from app.core.database import db
+        doc = await db["agent_prompts"].find_one({"_id": "story_agent"})
+        base_system = (
+            "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
+            "Your role is record keeping and story synthesis.\n"
+            "Summarize events into a SINGLE JSON object. No explanations or markdown."
         )
+        if doc and "system" in doc:
+            base_system = doc["system"]
+        
+        # 2. 모드별 스키마 강조
+        schema_hint = ""
+        if mode == "DIARY":
+            schema_hint = "\n[REQUIRED SCHEMA - DIARY]\n{\n  \"diary\": { \"title\": \"...\", \"text\": \"...\", \"tone\": \"...\" },\n  \"summary_bullets\": [\"...\"],\n  \"key_conversations\": [{ \"with\": \"...\", \"what_changed\": \"...\", \"quote\": \"...\" }],\n  \"items\": [{ \"name\": \"...\", \"how_used_or_implication\": \"...\" }],\n  \"clues\": [{ \"info\": \"...\", \"importance\": \"low|mid|high\" }],\n  \"troll_level_analysis\": { \"delta_total\": 0, \"top_causes\": [] },\n  \"consistency_check\": { \"contradictions_found\": [], \"missing_info\": [] },\n  \"ending\": { \"status\": \"continue\", \"ending_type\": \"null\", \"reason\": \"\", \"required_next_step\": \"\" },\n  \"flags_for_next_day\": [],\n  \"safety\": { \"hallucination_risk\": \"low\", \"spoiler_blocked\": true }\n}"
+        else:
+            schema_hint = "\n[REQUIRED SCHEMA - EPILOGUE]\n{\n  \"title\": \"...\",\n  \"text\": \"...\",\n  \"ending_type\": \"escape|assimilation|exposed|sacrifice|failure|twist\",\n  \"reason\": \"...\"\n}"
 
-        user_prompt = (
-            f"[fish_level={fish_level}]\n"
-            "Write a diary based ONLY on the messages log below. Do not invent new facts.\n"
-            "Condition: 7~10 sentences, as a single chunk without line breaks.\n\n"
-            f"{messages}"
-        )
+        full_system = f"{base_system}\n{schema_hint}\n\nStrictly output ONLY the JSON object starting with {{ and ending with }}."
+
+        # 3. Input Format 구성
+        input_data = {
+            "mode": mode,
+            "data": data
+        }
+        user_prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
         
         chat = [
-            {"role": "system", "content": system_prompt},
+            {"role": "system", "content": full_system},
             {"role": "user", "content": user_prompt}
         ]
         
-        if self.tokenizer:
-            full_prompt = self.tokenizer.apply_chat_template(chat, tokenize=False, add_generation_prompt=True)
-        else:
-            # Tokenizer가 없는 경우 (GPU Proxy 모드지만 로컬 토크나이저도 로드 안 된 경우)
-            # 수동으로 Chat Template 근사하게 구성
-            full_prompt = f"<|im_start|>system\n{system_prompt}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+        full_system = f"{base_system}\n{schema_hint}\n\nStrictly output ONLY the JSON object. Do not include any text before or after the JSON."
 
-        response_text = self.generate(full_prompt, max_new_tokens=1024)
+        # 3. Input Format 구성
+        input_data = {
+            "mode": mode,
+            "data": data
+        }
+        user_prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
+        
+        chat = [
+            {"role": "system", "content": full_system},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        # [FIX] GPU 프록시의 첫 몇 글자 잘림 현상을 방지하기 위해 아주 긴 더미 헤더 추가 (sacrificial padding)
+        padding = "PADDING_REPAIR_BUG_IGNORE_THIS_TEXT_AS_IT_IS_SACRIFICIAL_HEADER_FOR_TRUNCATION_FIX_"
+        
+        if self.tokenizer:
+            try:
+                full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n{padding}{{"
+            except Exception:
+                full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n{padding}{{"
+        else:
+            full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n{padding}{{"
+
+        # JSON 생성을 위해 온도를 낮춤 (0.1)
+        response_text = await self.generate(full_prompt, max_new_tokens=2048, temperature=0.1, top_p=0.95)
+        
+        # [REPAIR] 패딩이 일부 살아있거나 통째로 잘렸을 경우에도 { 를 찾아야 함
+        combined_text = response_text
+        if not combined_text.startswith("{") and "{" not in combined_text:
+            combined_text = "{" + combined_text
         
         # JSON 파싱
         try:
-            # 마크다운 코드블록 제거
-            if "```json" in response_text:
-                response_text = response_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in response_text:
-                response_text = response_text.split("```")[1].split("```")[0].strip()
+            # 1. 마크다운 코드블록 제거 시도
+            clean_text = combined_text.strip()
+            if "```json" in clean_text:
+                clean_text = clean_text.split("```json")[1].split("```")[0].strip()
+            elif "```" in clean_text:
+                clean_text = clean_text.split("```")[1].split("```")[0].strip()
             
-            data = json.loads(response_text)
-            # day_index 강제 주입 (LLM이 틀릴 수 있으므로)
-            data["day_index"] = day_index
-            return data
+            # 2. {, } 위치를 찾아 시도
+            start_idx = clean_text.find('{')
+            end_idx = clean_text.rfind('}')
+            
+            if start_idx != -1 and end_idx != -1:
+                clean_text = clean_text[start_idx:end_idx+1]
+            elif start_idx == -1 and end_idx != -1:
+                # { 가 빠졌을 수도 있으므로 강제로 앞에 붙여봄 (truncation 대응)
+                # 만약 "title": "..." 로 시작한다면 { 를 붙이면 유효한 JSON이 될 가능성이 높음
+                clean_text = "{" + clean_text[:end_idx+1]
+            
+            return json.loads(clean_text)
         except Exception as e:
             print(f"[StoryAgent] JSON Parsing Failed: {e}\nRaw: {response_text}")
             return {"error": "Failed to parse JSON", "raw": response_text}
 
+
+    async def generate_diary_summary(self, messages: str, day_index: int, fish_level: int = None) -> dict:
+        """
+        기존 메서드 호환성 유지용 래퍼. 내부적으로 generate_story_content를 호출합니다.
+        """
+        result = await self.generate_story_content(mode="DIARY", data=messages)
+        
+        # 레거시 코드 호환성을 위해 day_index 보정
+        if isinstance(result, dict) and "error" not in result:
+            result["day_index"] = day_index
+        return result
+
     def summarize_event(self, event_log: str) -> str:
         """
-        [New] 특정 사건(NPC 대화 등)을 요약합니다.
-        장기 기억(Vector DB) 저장용.
+        특정 사건(NPC 대화 등)을 요약합니다. 장기 기억(Vector DB) 저장용.
         """
         system_prompt = (
             "당신은 미스터리 게임의 객관적인 관찰자입니다. "
