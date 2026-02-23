@@ -76,8 +76,8 @@ story_agent.generate = mock.AsyncMock(side_effect=mock_story_generate)
 from app.agents.llm_engine import llm_engine
 
 NPC_NAMES = {
-    "gwakbing": "곽빙어", "cheonggalchi": "청갈치",
-    "bakbok": "박복어", "jeongwang": "전광어", "mineo": "이민어"
+    "bingeo": "곽빙어", "galchi": "청갈치",
+    "bokeo": "박복어", "gwangeo": "전광어", "mineo": "이민어"
 }
 
 # 다양한 NPC 응답 풀 (자연스러운 대화를 위해)
@@ -175,7 +175,7 @@ def get_eavesdrop_topic_from_rag() -> str:
 # 4. 테스트 Step 함수
 # ============================================================
 
-NPC_IDS = ["gwakbing", "cheonggalchi", "bakbok", "jeongwang", "mineo"]
+NPC_IDS = ["bingeo", "galchi", "bokeo", "gwangeo", "mineo"]
 TOTAL_DAYS = 5
 SESSIONS_PER_DAY = 4
 
@@ -283,15 +283,17 @@ async def step_get_epilogue(client: httpx.AsyncClient):
 # ============================================================
 
 def verify_rag_memory(day_index: int, npc_id: str) -> bool:
-    """VectorDB에 세션 요약이 저장되었는지 확인"""
+    """VectorDB에 세션 요약이 저장되었는지 확인 (메타데이터 필터 사용)"""
     try:
-        retriever = memory_manager.get_retriever(k=3)
-        results = retriever.invoke(f"Day {day_index} {npc_id} 세션 요약")
-        for doc in results:
-            meta = doc.metadata
-            if meta.get("npc_id") == npc_id and meta.get("day_index") == day_index:
-                return True
-        return False
+        store = memory_manager._get_store("npc_memories")
+        results = store._collection.get(
+            where={"$and": [
+                {"npc_id": {"$eq": npc_id}},
+                {"day_index": {"$eq": day_index}}
+            ]},
+            limit=1
+        )
+        return len(results["ids"]) > 0
     except Exception as e:
         print(f"    ⚠️ RAG 검증 오류: {e}")
         return False
@@ -504,6 +506,7 @@ async def main():
             await db["user_stats"].delete_many({"user_id": test_user_id})
             await db["npc_stats"].delete_many({"user_id": test_user_id})
             await db["inventories"].delete_many({"user_id": test_user_id})
+            await db["item_events"].delete_many({"user_id": test_user_id})
             await db["day_summaries"].delete_many({"user_id": test_user_id})
             await db["session_map_state"].delete_many({})
             print("✅ [Cleanup] 완료")

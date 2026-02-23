@@ -1,5 +1,5 @@
 {
-    "JEONGGWANGEO": {
+    "gwangeo": {
         "default": {
             "morning": "umi_class",
             "afternoon": "chapel",
@@ -25,7 +25,7 @@
             "night": "real_leader_room"
         }
     },
-    "PARKBOKEO": {
+    "bokeo": {
         "default": {
             "morning": "room004",
             "afternoon": "room004",
@@ -51,7 +51,7 @@
             "night": "room004"
         }
     },
-    "REPORTER_LEE": {
+    "mineo": {
         "default": {
             "morning": null,
             "afternoon": null,
@@ -71,7 +71,7 @@
             "night": "room002"
         }
     },
-    "CHEONGGALCHI": {
+    "galchi": {
         "default": {
             "morning": "cafeteria",
             "afternoon": "lounge",
@@ -97,7 +97,7 @@
             "night": "room005"
         }
     },
-    "GWAKBINGEO": {
+    "bingeo": {
         "default": {
             "morning": "hallway",
             "afternoon": "cafeteria",

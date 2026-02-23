@@ -1,4 +1,5 @@
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 from app.services.base_service import BaseService
 
 class InventoryService(BaseService):
@@ -45,7 +46,7 @@ class InventoryService(BaseService):
         }
 
     async def add_item(self, user_id: str, item_id: str):
-        """아이템을 획득 상태(True)로 변경합니다."""
+        """아이템을 획득 상태(True)로 변경하고, 이벤트를 기록합니다."""
         await self.db["inventories"].update_one(
             {"user_id": user_id},
             {
@@ -54,10 +55,24 @@ class InventoryService(BaseService):
             },
             upsert=True
         )
+        
+        # 아이템 이벤트 기록
+        item_info = await self.db["items"].find_one({"id": item_id}, {"_id": 0})
+        item_name = item_info.get("name", item_id) if item_info else item_id
+        await self.db["item_events"].insert_one({
+            "user_id": user_id,
+            "item_id": item_id,
+            "item_name": item_name,
+            "action": "acquired",
+            "description": item_info.get("description", "") if item_info else "",
+            "timestamp": datetime.utcnow()
+        })
+        print(f"📦 [Item] 아이템 획득 이벤트 기록: {item_name} ({item_id})")
+        
         return await self.get_user_inventory(user_id)
 
     async def use_item(self, user_id: str, item_id: str):
-        """아이템을 사용 완료 상태(False)로 변경합니다."""
+        """아이템을 사용 완료 상태(False)로 변경하고, 이벤트를 기록합니다."""
         inventory = await self.db["inventories"].find_one(
             {"user_id": user_id}
         )
@@ -69,6 +84,20 @@ class InventoryService(BaseService):
             {"user_id": user_id},
             {"$set": {f"items.{item_id}": False}}
         )
+        
+        # 아이템 이벤트 기록
+        item_info = await self.db["items"].find_one({"id": item_id}, {"_id": 0})
+        item_name = item_info.get("name", item_id) if item_info else item_id
+        await self.db["item_events"].insert_one({
+            "user_id": user_id,
+            "item_id": item_id,
+            "item_name": item_name,
+            "action": "used",
+            "description": item_info.get("description", "") if item_info else "",
+            "timestamp": datetime.utcnow()
+        })
+        print(f"🔧 [Item] 아이템 사용 이벤트 기록: {item_name} ({item_id})")
+        
         return True
 
     async def get_item_info(self, item_id: str) -> Optional[Dict[str, Any]]:

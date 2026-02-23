@@ -1,46 +1,79 @@
 {
-  "gwakbing": {
+  "bingeo": {
     "name_kr": "곽빙어",
-    "name_en": "GwakBingeo",
-    "id": "GwakBingeo",
+    "name_en": "bingeo",
+    "id": "bingeo",
     "role": "believer",
-    "stats": {
-      "friendly": 30,
-      "faith": 70,
+    "initialStats": {
+      "friendly": 15,
+      "faith": 20,
       "fishLevel": 1
+    },
+    "initialInventory": [
+      "npc_bingeo_001",
+      "npc_bingeo_002",
+      "npc_bingeo_003"
+    ],
+    "initialPortrait": "npc_bingeo_00.png",
+    "portraits": {
+      "default": "npc_bingeo_00.png"
     }
   },
-  "cheonggalchi": {
+  "galchi": {
     "name_kr": "청갈치",
-    "name_en": "CheongGalchi",
-    "id": "CheongGalchi",
+    "name_en": "galchi",
+    "id": "galchi",
     "role": "believer",
-    "stats": {
-      "friendly": 50,
-      "faith": 50,
+    "initialStats": {
+      "friendly": 10,
+      "faith": 10,
       "fishLevel": 2
+    },
+    "initialInventory": [
+      "npc_galchi_001",
+      "npc_galchi_002"
+    ],
+    "initialPortrait": "npc_galchi_00.png",
+    "portraits": {
+      "default": "npc_galchi_00.png"
     }
   },
-  "parkbok": {
+  "bokeo": {
     "name_kr": "박복어",
-    "name_en": "ParkBokeo",
-    "id": "ParkBokeo",
+    "name_en": "bokeo",
+    "id": "bokeo",
     "role": "believer",
-    "stats": {
-      "friendly": 40,
-      "faith": 60,
+    "initialStats": {
+      "friendly": 10,
+      "faith": 80,
       "fishLevel": 4
+    },
+    "initialInventory": [
+      "npc_bokeo_001",
+      "npc_bokeo_002",
+      "npc_bokeo_003"
+    ],
+    "initialPortrait": "npc_bokeo_00.png",
+    "portraits": {
+      "default": "npc_bokeo_00.png",
+      "alt": "npc_bokeo01.png"
     }
   },
-  "jeongwang": {
+  "gwangeo": {
     "name_kr": "전광어",
-    "name_en": "JeongGwangeo",
-    "id": "JeongGwangeo",
+    "name_en": "gwangeo",
+    "id": "gwangeo",
     "role": "leader",
-    "stats": {
-      "friendly": 30,
-      "faith": 90,
+    "initialStats": {
+      "friendly": 0,
+      "faith": 100,
       "fishLevel": 5
+    },
+    "initialInventory": [],
+    "initialPortrait": "npc_gwangeo_00.png",
+    "portraits": {
+      "default": "npc_gwangeo_00.png",
+      "alt": "npc_gwangeo_01.png"
     }
   },
   "mineo": {
@@ -48,10 +81,61 @@
     "name_en": "mineoLee",
     "id": "ReporterLee",
     "role": "reporter",
-    "stats": {
-      "friendly": 30,
-      "faith": 30,
+    "initialStats": {
+      "friendly": 10,
+      "faith": 50,
       "fishLevel": 0
+    },
+    "initialInventory": [],
+    "initialPortrait": "npc_mineeo_00.png",
+    "portraits": {
+      "default": "npc_mineeo_00.png",
+      "alt": "npc_mineeo_01.png"
+    }
+  },
+  "godeungeo": {
+    "id": "godeungeo",
+    "name": "고등어",
+    "isHardcoded": true,
+    "dialogues": [
+      "1",
+      "2",
+      "3"
+    ],
+    "initialPortrait": "npc_godeungeo_00.png",
+    "portraits": {
+      "default": "npc_godeungeo_00.png",
+      "alt": "npc_godeungeo_01.png"
+    }
+  },
+  "gubokchi": {
+    "id": "gubokchi",
+    "name": "구복치",
+    "isHardcoded": true,
+    "dialogues": [
+      "1",
+      "2",
+      "3"
+    ],
+    "initialPortrait": "npc_gubokchi_00.png",
+    "portraits": {
+      "default": "npc_gubokchi_00.png",
+      "alt": "npc_gubokchi_01.png"
+    }
+  },
+  "songsari": {
+    "id": "songsari",
+    "name": "송사리",
+    "isHardcoded": true,
+    "dialogues": [
+      "1",
+      "2",
+      "3"
+    ],
+    "initialPortrait": "npc_songsari_00.png",
+    "portraits": {
+      "default": "npc_songsari_00.png",
+      "alt": "npc_songsari_01.png"
     }
   }
 }
