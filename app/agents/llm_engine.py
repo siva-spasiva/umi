@@ -104,6 +104,33 @@ class LLMEngine:
                 "state": Dict
             }
         """
+        # ── Mock 모드: 모델 호출 없이 Mock 응답 반환 ──
+        if settings.MOCK_MODE:
+            import random
+            mock_responses = [
+                "음... 그건 좀 더 조사해봐야 할 것 같은데요.",
+                "아, 그걸 아시는군요. 사실 저도 좀 의심하고 있었어요.",
+                "그런 이야기가 있나요? 저는 잘 모르겠는데...",
+                "솔직히 말씀드리면, 최근에 이상한 일이 좀 있었어요.",
+                "아마 그건 교단과 관련이 있을 수도 있어요.",
+                "저도 비슷한 걸 들은 적이 있어요. 조심하세요.",
+                "흥미로운 이야기네요. 제가 아는 건 여기까지예요.",
+                "그 장소에 대해서는 말씀드리기 어렵지만... 힌트를 드리자면...",
+            ]
+            friendly_d = random.randint(-1, 2)
+            faith_d = random.randint(-1, 1)
+            result = {
+                "response": random.choice(mock_responses),
+                "analysis": {
+                    "reason_tags": ["정보제공"],
+                    "friendly_delta": friendly_d,
+                    "faith_delta": faith_d
+                },
+                "state": {"friendly": 50 + friendly_d, "faith": 50 + faith_d}
+            }
+            self._append_to_session(npc_id, message, result["response"], result["analysis"])
+            return result
+
         # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
         if settings.USE_GPU_PROXY:
             from app.core.gpu_proxy import gpu_proxy
@@ -225,8 +252,10 @@ class LLMEngine:
         1. Vector DB에 저장 (장기 기억용 - session_summary)
         2. MongoDB 'day_summaries' 컬렉션에 저장 (모니터링용)
         
+        Story Agent의 DIARY 모드를 사용하여 구조화된 JSON 응답을 생성합니다.
+        
         Args:
-            day_index: 게임 내 일차 (1~7 등)
+            day_index: 게임 내 일차 (1~5)
             npc_id: NPC 식별자 (None이면 버퍼가 있는 모든 NPC에 대해 수행)
             user_id: 유저 식별자 (모니터링 저장용 필수)
             
@@ -245,6 +274,41 @@ class LLMEngine:
                 
         summaries: Dict[str, str] = {}
         
+        # [NEW] 세션 중 발생한 아이템 이벤트 조회 (item_events 컬렉션)
+        items_acquired = []
+        items_used = []
+        if user_id:
+            try:
+                # 이전 세션 요약 시간 조회 (마지막 요약 이후의 이벤트만 가져오기)
+                last_summary = await db["day_summaries"].find_one(
+                    {"user_id": user_id},
+                    sort=[("timestamp", -1)]
+                )
+                since_time = last_summary["timestamp"] if last_summary else datetime(2000, 1, 1)
+                
+                # 이전 요약 이후의 아이템 이벤트 조회
+                cursor = db["item_events"].find(
+                    {"user_id": user_id, "timestamp": {"$gt": since_time}},
+                    {"_id": 0}
+                ).sort("timestamp", 1)
+                events = await cursor.to_list(length=100)
+                
+                for event in events:
+                    entry = {
+                        "name": event.get("item_name", event.get("item_id")),
+                        "how_used_or_implication": event.get("description", "")
+                    }
+                    if event["action"] == "acquired":
+                        items_acquired.append(entry)
+                    elif event["action"] == "used":
+                        items_used.append(entry)
+                
+                if items_acquired or items_used:
+                    print(f"📦 [Memory] 세션 아이템 이벤트: 획득 {len(items_acquired)}건, 사용 {len(items_used)}건")
+                    
+            except Exception as e:
+                print(f"⚠️ [Memory] 아이템 이벤트 조회 실패: {e}")
+        
         for target_id in target_ids:
             buffer = self.session_buffers.get(target_id, [])
             
@@ -261,32 +325,49 @@ class LLMEngine:
                 conversation_text += f"NPC({target_id}): {turn['npc']}\n"
                 conversation_text += f"  [감정: 호감도 {turn['friendly_delta']:+d}, 신뢰도 {turn['faith_delta']:+d}]\n\n"
             
-            # StoryAgent로 요약 생성 (GPU Proxy 모드에서는 원격 호출)
+            # [NEW] StoryAgent DIARY 모드로 구조화된 요약 생성
             try:
-                if settings.USE_GPU_PROXY:
-                    from app.core.gpu_proxy import gpu_proxy
-                    summary = await gpu_proxy.generate_diary(
-                        messages=conversation_text,
-                        fish_level=0,
-                        max_new_tokens=400
-                    )
+                diary_data = await story_agent.generate_story_content(
+                    mode="DIARY",
+                    data={
+                        "messages": conversation_text,
+                        "day_index": day_index,
+                        "npc_id": target_id,
+                        "items_acquired": items_acquired,
+                        "items_used": items_used
+                    }
+                )
+                
+                # 구조화된 결과에서 요약 텍스트 추출
+                if isinstance(diary_data, dict) and "error" not in diary_data:
+                    diary = diary_data.get("diary", {})
+                    summary = diary.get("text", conversation_text[:200])
+                    summary_title = diary.get("title", f"Day {day_index} - {target_id}")
+                    
+                    # 요약 불렛 포인트도 포함
+                    bullets = diary_data.get("summary_bullets", [])
+                    if bullets:
+                        summary += "\n주요 사항: " + ", ".join(bullets)
+                    
+                    print(f"📝 [StoryAgent] DIARY 모드 응답: \"{summary_title}\"")
                 else:
-                    summary = await asyncio.to_thread(
-                        story_agent.generate_diary,
-                        conversation_text,
-                        fish_level=0
-                    )
+                    error_msg = diary_data.get("error", "Unknown") if isinstance(diary_data, dict) else str(diary_data)
+                    print(f"⚠️ [StoryAgent] DIARY 모드 오류: {error_msg}")
+                    summary = f"Day {day_index} 세션 - {target_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
+                    diary_data = None
+                    
             except Exception as e:
                 print(f"⚠️ [Memory] 세션 요약 생성 실패 ({target_id}): {e}")
                 # 폴백: 요약 없이 핵심 대화만 저장
                 summary = f"Day {day_index} 세션 - {target_id}와 {len(buffer)}턴 대화. {conversation_text[:200]}..."
+                diary_data = None
             
             # 1. Vector DB에 저장 (Memory)
             memory_manager.add_memory(
                 text=summary,
                 metadata={
                     "npc_id": target_id,
-                    "memory_type": "session_summary", # Changed from day_summary
+                    "memory_type": "session_summary",
                     "day_index": day_index,
                     "turn_count": len(buffer)
                 }
@@ -295,14 +376,19 @@ class LLMEngine:
             # 2. MongoDB에 저장 (Log/Monitoring)
             if user_id:
                 try:
-                    await db["day_summaries"].insert_one({
+                    save_doc = {
                         "user_id": user_id,
                         "day_index": day_index,
                         "npc_id": target_id,
                         "summary": summary,
-                        "full_conversation": conversation_text, # 전체 대화도 백업
+                        "full_conversation": conversation_text,
                         "timestamp": datetime.utcnow()
-                    })
+                    }
+                    # 구조화된 DIARY 결과도 함께 저장
+                    if diary_data:
+                        save_doc["diary_data"] = diary_data
+                    
+                    await db["day_summaries"].insert_one(save_doc)
                     print(f"✅ [DB] Day Summary 저장 완료 ({target_id})")
                 except Exception as e:
                     print(f"⚠️ [DB] Day Summary 저장 실패: {e}")

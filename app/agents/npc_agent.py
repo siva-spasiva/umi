@@ -13,6 +13,15 @@ class NpcAgent:
     """
     
     def __init__(self):
+        # Mock 모드: 모델 로드 건너뛰기
+        if settings.MOCK_MODE:
+            print("[NpcAgent] Mock mode — skipping model loading")
+            self.analyzer = None
+            self.generator = None
+            self.generation_enabled = False
+            self.llm = None
+            return
+
         # GPU Proxy 모드: 모델 로드 건너뛰기 (EC2에서 실행)
         if settings.USE_GPU_PROXY:
             print("[NpcAgent] GPU Proxy mode — skipping local model loading")

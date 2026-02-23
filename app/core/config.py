@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     GPU_SERVER_URL: str = "http://localhost:8001"
     GPU_PROXY_TIMEOUT: int = 60
 
+    # Mock Mode (모든 LLM 호출을 Mock 데이터로 대체)
+    MOCK_MODE: bool = False
+
     class Config:
         env_file = ".env"
         extra = "ignore"  # 정의되지 않은 변수가 .env에 있어도 에러 무시

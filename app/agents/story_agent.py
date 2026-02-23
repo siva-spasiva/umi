@@ -11,6 +11,13 @@ class StoryAgent:
     Story Agent: LLM을 사용하여 스토리 진행, 대화 생성, 요약 등을 수행합니다.
     """
     def __init__(self):
+        # Mock 모드: 모델 로드 건너뛰기
+        if settings.MOCK_MODE:
+            print("[StoryAgent] Mock mode — skipping model loading")
+            self.model = None
+            self.tokenizer = None
+            return
+
         # GPU Proxy 모드: 모델 로드 건너뛰기
         if settings.USE_GPU_PROXY:
             print("[StoryAgent] GPU Proxy mode — skipping local model loading")
@@ -101,6 +108,32 @@ class StoryAgent:
 
     async def generate(self, prompt: str, max_new_tokens: int = 256, temperature: float = 0.7, top_p: float = 0.9) -> str:
         """프롬프트를 입력받아 텍스트를 생성합니다 (비동기)."""
+        import json as _json
+
+        # Mock 모드
+        if settings.MOCK_MODE:
+            # EPILOGUE 모드 감지
+            if '"mode": "EPILOGUE"' in prompt or '"mode":"EPILOGUE"' in prompt:
+                return _json.dumps({
+                    "title": "드러난 진실",
+                    "text": "5일간의 조사 끝에, UMI 교단의 실체가 드러났다. 교단은 이미 마을 깊숙이 뿌리를 내리고 있었고, 그 중심에는 예상치 못한 인물이 있었다.",
+                    "ending_type": "exposed",
+                    "reason": "체계적인 증거 수집과 NPC들의 신뢰를 얻어 핵심 정보에 접근할 수 있었다."
+                }, ensure_ascii=False)
+            # DIARY 모드 (기본)
+            return _json.dumps({
+                "diary": {"title": "수상한 움직임", "text": "오늘 하루도 기묘한 일들이 이어졌다.", "tone": "긴장감"},
+                "summary_bullets": ["마을 주민과의 대화에서 단서 발견", "의문의 물건 획득"],
+                "key_conversations": [],
+                "items": [],
+                "clues": [{"info": "교단의 의식 장소에 대한 힌트", "importance": "high"}],
+                "troll_level_analysis": {"delta_total": 0, "top_causes": []},
+                "consistency_check": {"contradictions_found": [], "missing_info": []},
+                "ending": {"status": "continue", "ending_type": "null", "reason": "", "required_next_step": ""},
+                "flags_for_next_day": [],
+                "safety": {"hallucination_risk": "low", "spoiler_blocked": True}
+            }, ensure_ascii=False)
+
         # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
         if settings.USE_GPU_PROXY:
             try:
