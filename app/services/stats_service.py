@@ -96,8 +96,6 @@ class StatsService(BaseService):
             "plusHp": 0,
             "currentPeriod": "morning",
             "currentDay": 1,
-            "friendly": 50,
-            "trust": 0,
             "created_at": datetime.now()
         }
         await self.collection_token.insert_one(initial_stats)
@@ -114,7 +112,7 @@ class StatsService(BaseService):
         })
 
         return {
-            "fishLevel": 0, "hp": 100, "friendly": 50, "trust": 0
+            "fishLevel": 0, "hp": 100
         }
         
     async def insert_initial_npc_stats(self, user_id: str):

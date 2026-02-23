@@ -9,18 +9,13 @@ class NPCStat(BaseModel):
 class FirstStatsResponse(BaseModel):
     fishLevel: int = Field(..., description="초기 물고기 레벨")
     hp: int = Field(..., description="초기 체력")
-    friendly: int = Field(..., description="초기 유저 친밀도")
-    trust: int = Field(..., description="초기 신뢰도")
 
 class StatsResponse(BaseModel):
     fishLevel: int = Field(..., description="현재 물고기 레벨")
     hp: int = Field(..., description="현재 체력")
-    friendly: int = Field(..., description="현재 유저 친밀도")
-    faith: int = Field(..., description="현재 신앙심")
-    trust: int = Field(..., description="현재 신뢰도")
 
 class StatsUpdate(BaseModel):
-    updates: Dict[str, Any] = Field(..., description="업데이트할 스탯 필드와 값의 딕셔너리", example={"hp": 80, "trust": 10})
+    updates: Dict[str, Any] = Field(..., description="업데이트할 스탯 필드와 값의 딕셔너리", example={"hp": 80, "fishLevel": 3})
 
 class NPCStatsUpdate(BaseModel):
     npcId: str = Field(..., description="대상 NPC의 고유 ID")
