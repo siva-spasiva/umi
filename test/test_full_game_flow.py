@@ -241,7 +241,7 @@ async def step_eavesdrop(client: httpx.AsyncClient, npc_ids: list, topic: str):
 
 async def step_eavesdrop_more(client: httpx.AsyncClient, day_index: int, session_index: int, room_id: str):
     """추가 엿듣기 (map/eavesdrop)"""
-    resp = await client.post("/api/v1/map/eavesdrop", json={
+    resp = await client.post("/api/v1/eavesdrop", json={
         "day_index": day_index,
         "session_index": session_index,
         "room_id": room_id

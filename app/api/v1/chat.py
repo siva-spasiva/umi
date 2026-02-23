@@ -1,11 +1,13 @@
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.schemas.chat import DayLog, ChatRequest, ChatResponse
 from app.schemas.story import StorySummary, EpilogueResponse
 
 from app.services.chat_service import chat_service
+from app.services.conversation_service import conversation_service
 from app.agents.llm_engine import llm_engine
 from app.core.security import get_current_user_id
+from app.core.database import db
 
 from typing import Optional
 
@@ -204,3 +206,50 @@ async def get_game_epilogue(user_id: str = Depends(get_current_user_id)):
     if not ending:
         raise HTTPException(status_code=404, detail="생성된 엔딩이 없습니다. /ending을 먼저 호출하세요.")
     return ending
+
+
+class EavesdropRequest(BaseModel):
+    """추가 엿듣기 요청 — 방 정보만 넘기면 서버가 알아서 처리"""
+    day_index: int = Field(..., description="현재 게임 일차")
+    session_index: int = Field(..., description="현재 세션 인덱스")
+    room_id: str = Field(..., description="엿듣기 중인 방 ID")
+
+
+@router.post("/eavesdrop", summary="추가 엿듣기",
+             description="NPC 대화를 추가로 엿듣습니다. day_index, session_index, room_id만 전달하면 서버가 session_map_state에서 해당 방의 NPC와 토픽을 읽어 새로운 6턴 대화를 생성합니다.")
+async def eavesdrop_more(request: EavesdropRequest):
+    """추가 엿듣기 API"""
+    session_state = await db["session_map_state"].find_one(
+        {"day_index": request.day_index, "session_index": request.session_index},
+        {"_id": 0}
+    )
+    
+    if not session_state:
+        raise HTTPException(status_code=404, detail="해당 세션의 맵 정보가 없습니다.")
+    
+    room_placement = None
+    for placement in session_state.get("room_placements", []):
+        if placement.get("room_id") == request.room_id:
+            room_placement = placement
+            break
+    
+    if not room_placement or len(room_placement.get("npcs", [])) < 2 or not room_placement.get("topic"):
+        raise HTTPException(status_code=404, detail="이 방에서 엿들을 수 있는 대화가 없습니다.")
+    
+    topic_data = room_placement["topic"]
+    topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
+    npc_ids_lower = [npc.lower() for npc in room_placement["npcs"]]
+    
+    try:
+        conversation = await conversation_service.start_auto_conversation(
+            topic=topic_text,
+            npc_ids=npc_ids_lower,
+            num_turns=6
+        )
+        return {
+            "conversation": conversation.model_dump(),
+            "can_eavesdrop_more": True
+        }
+    except Exception as e:
+        print(f"[ERROR] eavesdrop: {e}")
+        raise HTTPException(status_code=500, detail=f"엿듣기 생성 중 오류: {str(e)}")

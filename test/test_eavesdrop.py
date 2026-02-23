@@ -71,7 +71,7 @@ async def test_eavesdrop_more(client: httpx.AsyncClient):
         "room_id": "chapel"
     }
     
-    response = await client.post("/api/v1/map/eavesdrop", json=payload)
+    response = await client.post("/api/v1/eavesdrop", json=payload)
     assert response.status_code == 200, f"API 호출 실패: {response.text}"
     data = response.json()
     

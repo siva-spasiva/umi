@@ -41,3 +41,5 @@ app/data/init_data.py
 /npc_batch_results/*
 
 /logs
+/test/logs/*
+/test/test_full_game_flow_result.json
