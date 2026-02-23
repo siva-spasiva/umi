@@ -12,6 +12,7 @@ from app.schemas.conversation import (
 )
 from app.services.conversation_service import conversation_service
 from app.core.security import get_current_user_id
+from app.services.stats_service import stats_service
 
 router = APIRouter()
 
@@ -45,6 +46,11 @@ async def start_conversation(
         - npc_ids: NPC ID 목록
     """
     try:
+        # HP 소모 (10)
+        hp_result = await stats_service.spend_hp(user_id, 10, "NPC 자동 대화")
+        if not hp_result["success"]:
+            raise HTTPException(status_code=400, detail=hp_result["message"])
+
         # 스케줄 모드
         if request.day_index is not None and request.session is not None:
             results = await conversation_service.trigger_scheduled_conversations(

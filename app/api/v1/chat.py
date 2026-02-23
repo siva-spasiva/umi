@@ -8,6 +8,7 @@ from app.services.conversation_service import conversation_service
 from app.agents.llm_engine import llm_engine
 from app.core.security import get_current_user_id
 from app.core.database import db
+from app.services.stats_service import stats_service
 
 from typing import Optional
 
@@ -24,12 +25,19 @@ class EndDayRequest(BaseModel):
 async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
     """
     GA 에이전트가 입력과 출력을 검증하는 채팅 API입니다.
+    HP 10을 소모합니다.
     """
+    # HP 소모 (10)
+    hp_result = await stats_service.spend_hp(user_id, 10, "NPC 대화")
+    if not hp_result["success"]:
+        raise HTTPException(status_code=400, detail=hp_result["message"])
+
     result = await chat_service.process_chat_flow(user_id, request.npcId, request.message, request.item_id)
     
     if result.get("status") == "blocked_by_guardrail":
         return {"response": result["response"], "blocked": True}
         
+    result["hp"] = hp_result
     return result
 
 @router.post(
@@ -216,9 +224,14 @@ class EavesdropRequest(BaseModel):
 
 
 @router.post("/eavesdrop", summary="추가 엿듣기",
-             description="NPC 대화를 추가로 엿듣습니다. day_index, session_index, room_id만 전달하면 서버가 session_map_state에서 해당 방의 NPC와 토픽을 읽어 새로운 6턴 대화를 생성합니다.")
-async def eavesdrop_more(request: EavesdropRequest):
-    """추가 엿듣기 API"""
+             description="NPC 대화를 추가로 엿듣습니다. HP 5를 소모합니다.")
+async def eavesdrop_more(request: EavesdropRequest, user_id: str = Depends(get_current_user_id)):
+    """추가 엿듣기 API (HP -5)"""
+    # HP 소모 (5)
+    hp_result = await stats_service.spend_hp(user_id, 5, "엿듣기")
+    if not hp_result["success"]:
+        raise HTTPException(status_code=400, detail=hp_result["message"])
+
     session_state = await db["session_map_state"].find_one(
         {"day_index": request.day_index, "session_index": request.session_index},
         {"_id": 0}

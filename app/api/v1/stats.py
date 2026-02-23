@@ -2,8 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.schemas.stats import (
     StatsResponse, StatsUpdate, FirstStatsResponse, SuccessResponse,
     NPCStatsUpdate, NPCStat,
-    SpendHpRequest, SpendHpResponse,
-    HpCostPreviewRequest, HpCostPreviewResponse
+    SpendHpRequest, SpendHpResponse, AdvanceSessionResponse
 )
 from app.schemas.auth import TokenResponse, RefreshTokenRequest
 from app.services.stats_service import stats_service
@@ -13,7 +12,7 @@ router = APIRouter()
 
 @router.get("/stats", response_model=StatsResponse,
             summary="현재 유저 스탯 조회",
-            description="현재 로그인한 유저의 HP, 물고기 레벨, 신뢰도 등 전반적인 스탯 정보를 가져옵니다."
+            description="현재 로그인한 유저의 HP, 물고기 레벨 등 전반적인 스탯 정보를 가져옵니다."
             )
 async def get_stats(user_id: str = Depends(get_current_user_id)):
     return await stats_service.get_current_stats(user_id)
@@ -41,16 +40,14 @@ async def static_stats(user_id: str = Depends(get_current_user_id)):
 
 @router.post("/stats/hp/spend", response_model=SpendHpResponse,
              summary="HP 소모",
-             description="지정한 만큼 HP를 소모합니다. plusHp 우선 차감 후 base HP에서 차감. 시간대 경계를 넘으면 섹션 전환 정보를 반환합니다."
+             description="HP를 소모합니다. plus_hp 우선 차감 후 session_hp에서 차감. 둘 다 부족하면 실패합니다."
              )
 async def spend_hp(data: SpendHpRequest, user_id: str = Depends(get_current_user_id)):
-    result = await stats_service.spend_hp(user_id, data.cost, data.room_id)
-    return result
+    return await stats_service.spend_hp(user_id, data.hp, data.message)
 
-@router.post("/stats/hp/preview", response_model=HpCostPreviewResponse,
-             summary="HP 소모 미리보기",
-             description="HP를 소모하면 어떤 변화가 일어나는지 미리 확인합니다. DB 변경 없이 읽기 전용으로 동작합니다."
+@router.post("/stats/hp/advance", response_model=AdvanceSessionResponse,
+             summary="세션 전환",
+             description="다음 세션으로 전환합니다. 남은 session_hp가 plus_hp로 이월됩니다. night→morning 시 다음 날로 전환됩니다."
              )
-async def hp_cost_preview(data: HpCostPreviewRequest, user_id: str = Depends(get_current_user_id)):
-    result = await stats_service.get_hp_cost_preview(user_id, data.cost)
-    return result
+async def advance_session(user_id: str = Depends(get_current_user_id)):
+    return await stats_service.advance_session(user_id)

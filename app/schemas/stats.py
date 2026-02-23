@@ -28,36 +28,25 @@ class SuccessResponse(BaseModel):
 # ── HP 관리 관련 스키마 ──
 
 class SpendHpRequest(BaseModel):
-    cost: int = Field(..., ge=1, description="소모할 HP 양")
-    room_id: Optional[str] = Field(None, description="현재 방 ID (휴식 가능 여부 판별용)")
-
-class PenaltyInfo(BaseModel):
-    amount: int = Field(..., description="페널티 HP")
-    message: str = Field("피곤하다...", description="페널티 메시지")
-
-class SectionTransitionInfo(BaseModel):
-    message: str = Field(..., description="전환 메시지")
-    target_room: Optional[str] = Field(None, description="이동할 방")
-    next_period: str = Field(..., description="다음 시간대")
-    next_day: Optional[int] = Field(None, description="다음 날짜 (하루 넘어갈 때만)")
-    hp_after: int = Field(..., description="전환 후 HP")
-    plus_hp_after: int = Field(0, description="전환 후 plusHp")
-    penalty: Optional[PenaltyInfo] = Field(None, description="페널티 정보")
+    hp: int = Field(..., ge=1, description="소모할 HP 양")
+    message: Optional[str] = Field(None, description="HP 소모 사유")
 
 class SpendHpResponse(BaseModel):
     success: bool = Field(..., description="HP 소모 성공 여부")
-    hp: int = Field(..., description="소모 후 base HP")
-    plus_hp: int = Field(..., description="소모 후 plusHp")
-    current_period: str = Field(..., description="현재 시간대")
+    total_hp: int = Field(..., description="하루 남은 총 HP")
+    session_hp: int = Field(..., description="현재 세션 남은 HP (음수 = 다음 세션에서 차감)")
+    plus_hp: int = Field(..., description="이월 HP")
+    current_session: str = Field(..., description="현재 세션")
     current_day: int = Field(..., description="현재 날짜")
-    transition: Optional[SectionTransitionInfo] = Field(None, description="섹션 전환 발생 시 정보")
+    session_depleted: bool = Field(False, description="세션 HP 소진 여부 (True면 더 이상 행동 불가)")
+    message: Optional[str] = Field(None, description="결과 메시지")
 
-class HpCostPreviewRequest(BaseModel):
-    cost: int = Field(..., ge=1, description="확인할 HP 소모량")
-
-class HpCostPreviewResponse(BaseModel):
-    affordable: bool = Field(..., description="소모 가능 여부")
-    will_transition: bool = Field(False, description="섹션 전환 발생 여부")
-    from_period: Optional[str] = Field(None, description="현재 시간대")
-    to_period: Optional[str] = Field(None, description="전환 후 시간대")
-    new_hp: Optional[int] = Field(None, description="소모 후 예상 HP")
+class AdvanceSessionResponse(BaseModel):
+    success: bool = Field(..., description="세션 전환 성공 여부")
+    previous_session: str = Field(..., description="이전 세션")
+    current_session: str = Field(..., description="전환 후 세션")
+    total_hp: int = Field(..., description="하루 남은 총 HP")
+    session_hp: int = Field(..., description="새 세션 HP")
+    plus_hp: int = Field(..., description="이월된 HP")
+    current_day: int = Field(..., description="현재 날짜")
+    message: Optional[str] = Field(None, description="전환 메시지")

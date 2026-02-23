@@ -8,52 +8,22 @@ from app.services.base_service import BaseService
 from app.core.security import create_access_token, verify_token, create_refresh_token
 
 
-# ── HP ↔ 시간대 매핑 (프론트엔드 로직 그대로 서버로 이식) ──
-HP_PERIOD_THRESHOLDS = [
-    (76, "morning"),    # 76~100
-    (51, "afternoon"),  # 51~75
-    (26, "evening"),    # 26~50
-    (1,  "night"),      # 1~25
-]
-
-SECTION_TRANSITIONS = {
-    "morning": {
-        "next": "afternoon",
-        "message": "점심시간이 다 됐군... 식당으로 가볼까.",
-        "target_room": "cafeteria",
-    },
-    "afternoon": {
-        "next": "evening",
-        "message": "해가 기울기 시작한다. 저녁 준비를 해야겠어.",
-        "target_room": None,
-    },
-    "evening": {
-        "next": "night",
-        "message": "밤이 깊어간다... 오늘은 여기까지.",
-        "target_room": None,
-    },
-    "night": {
-        "next": "dawn",
-        "message": "새벽이 밝아온다...",
-        "target_room": None,
-    },
-    "dawn": {
-        "next": "morning",
-        "message": "새로운 하루가 시작된다.",
-        "target_room": "room001",
-    },
+# ── 세션별 HP 배분 ──
+SESSION_HP_MAP = {
+    "morning": 30,
+    "afternoon": 30,
+    "evening": 30,
+    "night": 10,
 }
 
-# 휴식 가능한 방 목록
-REST_ROOMS = {"room001", "room002", "room003", "room004", "room005"}
+SESSION_ORDER = ["morning", "afternoon", "evening", "night"]
 
-
-def get_period_from_hp(hp: int) -> Optional[str]:
-    """base HP 값에 따른 시간대를 반환"""
-    for threshold, period in HP_PERIOD_THRESHOLDS:
-        if hp >= threshold:
-            return period
-    return None
+SESSION_MESSAGES = {
+    "morning": "아침이 밝았다. 새로운 하루가 시작된다.",
+    "afternoon": "점심시간이 다 됐군... 식당으로 가볼까.",
+    "evening": "해가 기울기 시작한다.",
+    "night": "밤이 깊어간다...",
+}
 
 
 class StatsService(BaseService):
@@ -75,9 +45,7 @@ class StatsService(BaseService):
         filter_query = {"user_id": user_id}
         update_query = {"$set": updates}
         await self.collection_token.update_one(
-            filter_query,
-            update_query,
-            upsert=True
+            filter_query, update_query, upsert=True
         )
         return await self.get_current_stats(user_id)
 
@@ -92,18 +60,17 @@ class StatsService(BaseService):
         initial_stats = {
             "user_id": user_id,
             "fishLevel": 0,
-            "hp": 100,
-            "plusHp": 0,
-            "currentPeriod": "morning",
-            "currentDay": 1,
+            "total_hp": 100,
+            "session_hp": 30,
+            "plus_hp": 0,
+            "current_session": "morning",
+            "current_day": 1,
             "created_at": datetime.now()
         }
         await self.collection_token.insert_one(initial_stats)
 
-        # NPC stats 생성
         await self.insert_initial_npc_stats(user_id)
 
-        # 초기 인벤토리 생성
         initial_items = {f"{i:03d}": (i <= 3) for i in range(1, 100)}
         await self.db["inventories"].insert_one({
             "user_id": user_id,
@@ -111,9 +78,7 @@ class StatsService(BaseService):
             "created_at": datetime.now()
         })
 
-        return {
-            "fishLevel": 0, "hp": 100
-        }
+        return {"fishLevel": 0, "hp": 100}
         
     async def insert_initial_npc_stats(self, user_id: str):
         file_path = os.path.join(os.path.dirname(__file__), "..", "data", "characters.json")
@@ -122,7 +87,6 @@ class StatsService(BaseService):
                 npc_data_map = json.load(f)
                 npc_documents = []
                 for npc_name, char_info in npc_data_map.items():
-                    # isHardcoded NPC는 스탯이 없으므로 건너뛰기
                     if char_info.get("isHardcoded"):
                         continue
                     npc_stats = char_info.get("initialStats", {})
@@ -140,176 +104,162 @@ class StatsService(BaseService):
             raise FileNotFoundError(f"Character data file not found at: {file_path}")
 
     # ================================================================
-    # HP 관리 로직
+    # HP 관리 로직 (3-Tier: total_hp / session_hp / plus_hp)
     # ================================================================
 
-    async def _log_hp_event(self, user_id: str, cost: int, room_id: Optional[str],
-                            before: Dict, after: Dict, transition: Optional[Dict]):
+    def _build_hp_response(self, success: bool, stats: Dict, message: Optional[str] = None) -> Dict:
+        """HP 응답 공통 빌더"""
+        return {
+            "success": success,
+            "total_hp": stats.get("total_hp", 0),
+            "session_hp": stats.get("session_hp", 0),
+            "plus_hp": stats.get("plus_hp", 0),
+            "current_session": stats.get("current_session", "morning"),
+            "current_day": stats.get("current_day", 1),
+            "message": message,
+        }
+
+    async def _log_hp_event(self, user_id: str, cost: int, message: Optional[str],
+                            before: Dict, after: Dict):
         """HP 소모 이벤트를 hp_events 컬렉션에 기록"""
         event = {
             "user_id": user_id,
             "cost": cost,
-            "room_id": room_id,
+            "message": message,
             "before": {
-                "hp": before["hp"],
-                "plusHp": before["plusHp"],
-                "period": before["period"],
-                "day": before["day"],
+                "total_hp": before.get("total_hp"),
+                "session_hp": before.get("session_hp"),
+                "plus_hp": before.get("plus_hp"),
+                "session": before.get("current_session"),
+                "day": before.get("current_day"),
             },
             "after": {
-                "hp": after["hp"],
-                "plusHp": after["plusHp"],
-                "period": after["period"],
-                "day": after["day"],
+                "total_hp": after.get("total_hp"),
+                "session_hp": after.get("session_hp"),
+                "plus_hp": after.get("plus_hp"),
+                "session": after.get("current_session"),
+                "day": after.get("current_day"),
             },
-            "transition_triggered": transition is not None,
-            "transition": transition,
             "timestamp": datetime.now(),
         }
         await self.db["hp_events"].insert_one(event)
 
-    async def spend_hp(self, user_id: str, cost: int, room_id: Optional[str] = None) -> Dict[str, Any]:
+    async def spend_hp(self, user_id: str, cost: int, message: Optional[str] = None) -> Dict[str, Any]:
         """
-        HP를 소모합니다. plusHp 우선 소모 후 base HP에서 차감.
-        시간대 경계를 넘으면 섹션 전환 정보를 반환합니다.
-        소모 이력은 hp_events 컬렉션에 자동 기록됩니다.
-        
-        Returns:
-            {success, hp, plus_hp, current_period, current_day, transition}
+        HP를 소모합니다.
+        1. plus_hp 우선 소모
+        2. 부족하면 session_hp에서 소모
+        3. available > 0이면 부족해도 1회 허용 (다음 세션에서 차감)
+        4. available <= 0이면 거부 (이미 다 쓴)
+        5. total_hp도 동시에 감소
         """
         stats = await self.get_current_stats(user_id)
         if not stats:
-            return {"success": False, "hp": 0, "plus_hp": 0, "current_period": "morning", "current_day": 1, "transition": None}
-        
-        base_hp = stats.get("hp", 100)
-        current_plus = stats.get("plusHp", 0)
-        current_period = stats.get("currentPeriod", "morning")
-        current_day = stats.get("currentDay", 1)
-        total_hp = base_hp + current_plus
+            return {"success": False, "total_hp": 0, "session_hp": 0, "plus_hp": 0,
+                    "current_session": "morning", "current_day": 1,
+                    "session_depleted": True, "message": "유저 정보를 찾을 수 없습니다."}
 
-        before_state = {"hp": base_hp, "plusHp": current_plus, "period": current_period, "day": current_day}
+        total_hp = stats.get("total_hp", 100)
+        session_hp = stats.get("session_hp", 30)
+        plus_hp = stats.get("plus_hp", 0)
+        available = session_hp + plus_hp
 
-        # 체력 부족
-        if total_hp < cost:
-            return {"success": False, "hp": base_hp, "plus_hp": current_plus, 
-                    "current_period": current_period, "current_day": current_day, "transition": None}
+        # 이미 소진됨 (땅겨쓰기 후 또는 정확히 다 쓴)
+        if available <= 0:
+            resp = self._build_hp_response(False, stats, "HP가 소진되었습니다. 다음 세션으로 전환해주세요.")
+            resp["session_depleted"] = True
+            return resp
 
-        # plusHp 우선 소모
-        remaining_cost = cost
-        new_plus = current_plus
+        before_state = dict(stats)
+
+        # plus_hp 우선 소모
+        remaining = cost
+        new_plus = plus_hp
         if new_plus > 0:
-            from_plus = min(remaining_cost, new_plus)
+            from_plus = min(remaining, new_plus)
             new_plus -= from_plus
-            remaining_cost -= from_plus
+            remaining -= from_plus
 
-        # 나머지를 base HP에서 차감
-        new_hp = base_hp - remaining_cost
-        new_period = get_period_from_hp(new_hp)
+        # 나머지를 session_hp에서 차감 (마이너스 가능 = 다음 세션에서 땅겨쓰기)
+        new_session = session_hp - remaining
+        new_total = total_hp - cost
 
-        has_rest = room_id in REST_ROOMS if room_id else False
-        transition = None
+        await self.update_stats({
+            "total_hp": new_total,
+            "session_hp": new_session,
+            "plus_hp": new_plus,
+        }, user_id)
 
-        if new_hp <= 0:
-            # base HP 소진 → 다음 날로 진행
-            next_day = min(current_day + 1, 7)
-            penalty = 0 if has_rest else 5
-            hp_after = 100 - penalty
+        after_stats = await self.get_current_stats(user_id)
+        await self._log_hp_event(user_id, cost, message, before_state, after_stats)
 
-            transition = {
-                "message": SECTION_TRANSITIONS["dawn"]["message"],
-                "target_room": SECTION_TRANSITIONS["dawn"]["target_room"],
-                "next_period": "morning",
-                "next_day": next_day,
-                "hp_after": hp_after,
-                "plus_hp_after": 0,
-                "penalty": {"amount": penalty, "message": "피곤하다..."} if penalty > 0 else None,
-            }
+        # 세션 소진 판단: 소모 후 남은 available <= 0
+        new_available = new_session + new_plus
+        resp = self._build_hp_response(True, after_stats, message)
+        resp["session_depleted"] = (new_available <= 0)
+        return resp
 
-            await self.update_stats({
-                "hp": hp_after, "plusHp": 0,
-                "currentPeriod": "morning", "currentDay": next_day,
-            }, user_id)
-
-            after_state = {"hp": hp_after, "plusHp": 0, "period": "morning", "day": next_day}
-            await self._log_hp_event(user_id, cost, room_id, before_state, after_state, transition)
-
-            return {"success": True, "hp": hp_after, "plus_hp": 0,
-                    "current_period": "morning", "current_day": next_day, "transition": transition}
-
-        if new_period and new_period != current_period:
-            # 시간대 경계 돌파 → 섹션 전환
-            penalty = 0 if has_rest else 5
-            hp_after_penalty = max(0, new_hp - penalty)
-
-            trans_info = SECTION_TRANSITIONS.get(current_period)
-            if trans_info:
-                transition = {
-                    "message": trans_info["message"],
-                    "target_room": trans_info["target_room"],
-                    "next_period": trans_info["next"],
-                    "next_day": None,
-                    "hp_after": hp_after_penalty,
-                    "plus_hp_after": 0,
-                    "penalty": {"amount": penalty, "message": "피곤하다..."} if penalty > 0 else None,
-                }
-
-            await self.update_stats({
-                "hp": hp_after_penalty, "plusHp": 0,
-                "currentPeriod": new_period,
-            }, user_id)
-
-            after_state = {"hp": hp_after_penalty, "plusHp": 0, "period": new_period, "day": current_day}
-            await self._log_hp_event(user_id, cost, room_id, before_state, after_state, transition)
-
-            return {"success": True, "hp": hp_after_penalty, "plus_hp": 0,
-                    "current_period": new_period, "current_day": current_day, "transition": transition}
-        else:
-            # 같은 시간대 내 소모
-            await self.update_stats({
-                "hp": new_hp, "plusHp": new_plus,
-            }, user_id)
-
-            after_state = {"hp": new_hp, "plusHp": new_plus, "period": current_period, "day": current_day}
-            await self._log_hp_event(user_id, cost, room_id, before_state, after_state, None)
-
-            return {"success": True, "hp": new_hp, "plus_hp": new_plus,
-                    "current_period": current_period, "current_day": current_day, "transition": None}
-
-    async def get_hp_cost_preview(self, user_id: str, cost: int) -> Dict[str, Any]:
+    async def advance_session(self, user_id: str) -> Dict[str, Any]:
         """
-        HP 소모 시 어떤 변화가 일어나는지 미리 보기 (DB 변경 없음)
+        다음 세션으로 전환합니다.
+        - session_hp >= 0: 남은 session_hp를 plus_hp로 이월
+        - session_hp < 0: 땅겨쓴 부채 → 다음 세션 HP에서 차감
+        - night → morning: day++, total_hp = 100 + 이월분
         """
         stats = await self.get_current_stats(user_id)
         if not stats:
-            return {"affordable": False, "will_transition": False}
-        
-        base_hp = stats.get("hp", 100)
-        current_plus = stats.get("plusHp", 0)
-        current_period = stats.get("currentPeriod", "morning")
-        total_hp = base_hp + current_plus
+            return {"success": False, "previous_session": "", "current_session": "",
+                    "total_hp": 0, "session_hp": 0, "plus_hp": 0,
+                    "current_day": 1, "message": "유저 정보를 찾을 수 없습니다."}
 
-        if total_hp < cost:
-            return {"affordable": False, "will_transition": False,
-                    "from_period": current_period, "to_period": None, "new_hp": None}
+        current_session = stats.get("current_session", "morning")
+        current_day = stats.get("current_day", 1)
+        session_hp = stats.get("session_hp", 0)
 
-        remaining_cost = cost
-        tmp_plus = current_plus
-        if tmp_plus > 0:
-            from_plus = min(remaining_cost, tmp_plus)
-            tmp_plus -= from_plus
-            remaining_cost -= from_plus
+        idx = SESSION_ORDER.index(current_session)
 
-        new_hp = base_hp - remaining_cost
-        new_period = get_period_from_hp(new_hp) if new_hp > 0 else None
+        if current_session == "night":
+            next_session = "morning"
+            next_day = current_day + 1
+        else:
+            next_session = SESSION_ORDER[idx + 1]
+            next_day = current_day
 
-        will_transition = new_hp <= 0 or (new_period is not None and new_period != current_period)
+        base_session_hp = SESSION_HP_MAP[next_session]
+
+        if session_hp < 0:
+            # 땅겨쓴 부채: 다음 세션 HP에서 차감
+            new_session_hp = base_session_hp + session_hp  # e.g. 30 + (-7) = 23
+            new_plus = 0
+        else:
+            # 남은 HP 이월
+            new_session_hp = base_session_hp
+            new_plus = session_hp
+
+        if current_session == "night":
+            new_total = 100 + max(0, session_hp)  # 이월분만 더함, 부채는 session_hp에 이미 반영
+            msg = f"Day {next_day} — {SESSION_MESSAGES['morning']}"
+        else:
+            new_total = stats.get("total_hp", 100)
+            msg = SESSION_MESSAGES.get(next_session, "")
+
+        await self.update_stats({
+            "current_session": next_session,
+            "current_day": next_day,
+            "total_hp": new_total,
+            "session_hp": new_session_hp,
+            "plus_hp": new_plus,
+        }, user_id)
 
         return {
-            "affordable": True,
-            "will_transition": will_transition,
-            "from_period": current_period,
-            "to_period": "morning" if new_hp <= 0 else new_period,
-            "new_hp": new_hp,
+            "success": True,
+            "previous_session": current_session,
+            "current_session": next_session,
+            "total_hp": new_total,
+            "session_hp": new_session_hp,
+            "plus_hp": new_plus,
+            "current_day": next_day,
+            "message": msg,
         }
 
 

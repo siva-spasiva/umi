@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any
 from app.schemas.map import Floor, Room
 from app.services.map_service import map_service
 from app.services.conversation_service import conversation_service
+from app.services.stats_service import stats_service
+from app.core.security import get_current_user_id
 from app.core.database import db
 
 router = APIRouter()
@@ -27,7 +29,8 @@ async def get_room(
     floor_id: str,
     room_id: str,
     day_index: Optional[int] = Query(None, description="현재 게임 일차 (1~5)"),
-    session_index: Optional[int] = Query(None, description="현재 세션 인덱스 (1~4)")
+    session_index: Optional[int] = Query(None, description="현재 세션 인덱스 (1~4)"),
+    user_id: str = Depends(get_current_user_id)
 ):
     """
     특정 층의 특정 방 데이터를 반환합니다.
@@ -54,6 +57,13 @@ async def get_room(
                     break
             
             if room_placement and len(room_placement.get("npcs", [])) >= 2 and room_placement.get("topic"):
+                # HP 소모 (5) — NPC 대화 미리보기
+                hp_result = await stats_service.spend_hp(user_id, 5, "방 엿듣기")
+                if not hp_result["success"]:
+                    response["eavesdrop"] = None
+                    response["hp_error"] = hp_result["message"]
+                    return response
+
                 topic_data = room_placement["topic"]
                 topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
                 npc_ids_lower = [npc.lower() for npc in room_placement["npcs"]]
