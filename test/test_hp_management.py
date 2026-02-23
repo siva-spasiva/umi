@@ -92,12 +92,13 @@ async def main():
             print("\n" + "="*60)
             print("📌 5. Morning → Afternoon (session -7 부채 적용)")
             print("="*60)
-            r = (await c.post("/api/v1/stats/hp/advance")).json()
-            print(f"  {r['previous_session']} → {r['current_session']}")
-            print(f"  total={r['total_hp']}, session={r['session_hp']}, plus={r['plus_hp']}")
-            check("afternoon 전환", r["current_session"] == "afternoon")
-            check("session 23 (30-7 부채)", r["session_hp"] == 23)
-            check("plus 0 (부채라 이월 없음)", r["plus_hp"] == 0)
+            r = (await c.post("/api/v1/end-session", json={"day_index": 0, "session_index": 1})).json()
+            adv = r["advance"]
+            print(f"  {adv['previous_session']} → {adv['current_session']}")
+            print(f"  total={adv['total_hp']}, session={adv['session_hp']}, plus={adv['plus_hp']}")
+            check("afternoon 전환", adv["current_session"] == "afternoon")
+            check("session 23 (30-7 부채)", adv["session_hp"] == 23)
+            check("plus 0 (부채라 이월 없음)", adv["plus_hp"] == 0)
 
             # ── 6. Afternoon 5 소모 후 전환 ──
             print("\n" + "="*60)
@@ -112,30 +113,33 @@ async def main():
             print("\n" + "="*60)
             print("📌 7. Afternoon → Evening (18 이월)")
             print("="*60)
-            r = (await c.post("/api/v1/stats/hp/advance")).json()
-            print(f"  total={r['total_hp']}, session={r['session_hp']}, plus={r['plus_hp']}")
-            check("session 30", r["session_hp"] == 30)
-            check("plus 18", r["plus_hp"] == 18)
+            r = (await c.post("/api/v1/end-session", json={"day_index": 0, "session_index": 2})).json()
+            adv = r["advance"]
+            print(f"  total={adv['total_hp']}, session={adv['session_hp']}, plus={adv['plus_hp']}")
+            check("session 30", adv["session_hp"] == 30)
+            check("plus 18", adv["plus_hp"] == 18)
 
             # ── 8. Evening → Night (미소모, 30 이월) ──
             print("\n" + "="*60)
             print("📌 8. Evening → Night (미소모)")
             print("="*60)
-            r = (await c.post("/api/v1/stats/hp/advance")).json()
-            print(f"  total={r['total_hp']}, session={r['session_hp']}, plus={r['plus_hp']}")
-            check("session 10", r["session_hp"] == 10)
-            check("plus 30 (evening 전체 이월)", r["plus_hp"] == 30)
+            r = (await c.post("/api/v1/end-session", json={"day_index": 0, "session_index": 3})).json()
+            adv = r["advance"]
+            print(f"  total={adv['total_hp']}, session={adv['session_hp']}, plus={adv['plus_hp']}")
+            check("session 10", adv["session_hp"] == 10)
+            check("plus 30 (evening 전체 이월)", adv["plus_hp"] == 30)
 
             # ── 9. Night → Day 1 Morning (미소모, 10 이월) ──
             print("\n" + "="*60)
             print("📌 9. Night → Day 1 Morning")
             print("="*60)
-            r = (await c.post("/api/v1/stats/hp/advance")).json()
-            print(f"  Day {r['current_day']}: total={r['total_hp']}, session={r['session_hp']}, plus={r['plus_hp']}")
-            check("Day 1", r["current_day"] == 1)
-            check("total 110 (100+10)", r["total_hp"] == 110)
-            check("session 30", r["session_hp"] == 30)
-            check("plus 10", r["plus_hp"] == 10)
+            r = (await c.post("/api/v1/end-session", json={"day_index": 0, "session_index": 4})).json()
+            adv = r["advance"]
+            print(f"  Day {adv['current_day']}: total={adv['total_hp']}, session={adv['session_hp']}, plus={adv['plus_hp']}")
+            check("Day 1", adv["current_day"] == 1)
+            check("total 110 (100+10)", adv["total_hp"] == 110)
+            check("session 30", adv["session_hp"] == 30)
+            check("plus 10", adv["plus_hp"] == 10)
 
             # ── 10. hp_events ──
             print("\n" + "="*60)

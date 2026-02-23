@@ -172,6 +172,8 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
             {"$set": next_map_config},
             upsert=True
         )
+
+        advance_result = await stats_service.advance_session(user_id)
         
         if not summaries:
             return {
@@ -179,7 +181,8 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
                 "message": "대화 내역이 없어 요약을 생략했습니다.",
                 "day_index": request.day_index,
                 "session_index": request.session_index,
-                "next_session_map": next_map_config
+                "next_session_map": next_map_config,
+                "advance": advance_result,
             }
         
         return {
@@ -187,7 +190,8 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
             "day_index": request.day_index,
             "session_index": request.session_index,
             "summaries": summaries,
-            "next_session_map": next_map_config
+            "next_session_map": next_map_config,
+            "advance": advance_result,
         }
     except Exception as e:
         print(f"[ERROR] end-session: {e}")

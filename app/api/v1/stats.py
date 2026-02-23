@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from app.schemas.stats import (
     StatsResponse, StatsUpdate, FirstStatsResponse, SuccessResponse,
     NPCStatsUpdate, NPCStat,
-    SpendHpRequest, SpendHpResponse, AdvanceSessionResponse
+    SpendHpRequest, SpendHpResponse
 )
 from app.schemas.auth import TokenResponse, RefreshTokenRequest
 from app.services.stats_service import stats_service
@@ -44,10 +44,3 @@ async def static_stats(user_id: str = Depends(get_current_user_id)):
              )
 async def spend_hp(data: SpendHpRequest, user_id: str = Depends(get_current_user_id)):
     return await stats_service.spend_hp(user_id, data.hp, data.message)
-
-@router.post("/stats/hp/advance", response_model=AdvanceSessionResponse,
-             summary="세션 전환",
-             description="다음 세션으로 전환합니다. 남은 session_hp가 plus_hp로 이월됩니다. night→morning 시 다음 날로 전환됩니다."
-             )
-async def advance_session(user_id: str = Depends(get_current_user_id)):
-    return await stats_service.advance_session(user_id)
