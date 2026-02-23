@@ -189,7 +189,7 @@ class ChatService(BaseService):
             messages_text += f"[{h['speaker']}]: {h['content']}\n"
             
         # 3. LLM 호출 (StoryAgent)
-        summary_data_dict = story_agent.generate_diary_summary(messages_text, day_index)
+        summary_data_dict = await story_agent.generate_diary_summary(messages_text, day_index)
         
         if "error" in summary_data_dict:
             raise Exception(f"Failed to generate diary: {summary_data_dict['error']}")
