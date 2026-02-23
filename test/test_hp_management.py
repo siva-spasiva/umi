@@ -43,12 +43,20 @@ async def main():
         try:
             # ── 1. 초기화 ──
             print("\n" + "="*60)
-            print("📌 1. 유저 초기화")
+            print("📌 1. 유저 초기화 (Day 0 = 튜토리얼)")
             print("="*60)
             await c.post("/api/v1/users/login")
-            await c.get("/api/v1/stats/static")
+            init = (await c.get("/api/v1/stats/static")).json()
             print(f"  유저: {test_user_id}")
-            print(f"  morning: total=100, session=30, plus=0")
+            print(f"  초기: day={init['current_day']}, session={init['current_session']}, total={init['total_hp']}")
+            check("Day 0 (튜토리얼)", init["current_day"] == 0)
+            check("morning 시작", init["current_session"] == "morning")
+
+            # GET /stats로 day/session 조회 확인
+            stats = (await c.get("/api/v1/stats")).json()
+            check("GET /stats current_day=0", stats["current_day"] == 0)
+            check("GET /stats current_session=morning", stats["current_session"] == "morning")
+            check("GET /stats total_hp=100", stats["total_hp"] == 100)
 
             # ── 2. 일반 소모 (10) ──
             print("\n" + "="*60)
@@ -118,13 +126,13 @@ async def main():
             check("session 10", r["session_hp"] == 10)
             check("plus 30 (evening 전체 이월)", r["plus_hp"] == 30)
 
-            # ── 9. Night → Day 2 Morning (미소모, 10 이월) ──
+            # ── 9. Night → Day 1 Morning (미소모, 10 이월) ──
             print("\n" + "="*60)
-            print("📌 9. Night → Day 2 Morning")
+            print("📌 9. Night → Day 1 Morning")
             print("="*60)
             r = (await c.post("/api/v1/stats/hp/advance")).json()
             print(f"  Day {r['current_day']}: total={r['total_hp']}, session={r['session_hp']}, plus={r['plus_hp']}")
-            check("Day 2", r["current_day"] == 2)
+            check("Day 1", r["current_day"] == 1)
             check("total 110 (100+10)", r["total_hp"] == 110)
             check("session 30", r["session_hp"] == 30)
             check("plus 10", r["plus_hp"] == 10)

@@ -56,7 +56,7 @@ class StatsService(BaseService):
         return await self.get_current_NPC_stats(user_id, npc_id)
 
     async def static_stats(self, user_id: str):
-        """유저 스탯 생성"""
+        """유저 스탯 생성 (Day 0 = 튜토리얼)"""
         initial_stats = {
             "user_id": user_id,
             "fishLevel": 0,
@@ -64,7 +64,7 @@ class StatsService(BaseService):
             "session_hp": 30,
             "plus_hp": 0,
             "current_session": "morning",
-            "current_day": 1,
+            "current_day": 0,
             "created_at": datetime.now()
         }
         await self.collection_token.insert_one(initial_stats)
@@ -78,7 +78,14 @@ class StatsService(BaseService):
             "created_at": datetime.now()
         })
 
-        return {"fishLevel": 0, "hp": 100}
+        return {
+            "fishLevel": 0,
+            "total_hp": 100,
+            "session_hp": 30,
+            "plus_hp": 0,
+            "current_session": "morning",
+            "current_day": 0,
+        }
         
     async def insert_initial_npc_stats(self, user_id: str):
         file_path = os.path.join(os.path.dirname(__file__), "..", "data", "characters.json")

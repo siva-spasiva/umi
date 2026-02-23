@@ -8,11 +8,19 @@ class NPCStat(BaseModel):
 
 class FirstStatsResponse(BaseModel):
     fishLevel: int = Field(..., description="초기 물고기 레벨")
-    hp: int = Field(..., description="초기 체력")
+    total_hp: int = Field(100, description="하루 총 HP")
+    session_hp: int = Field(30, description="초기 세션 HP")
+    plus_hp: int = Field(0, description="이월 HP")
+    current_session: str = Field("morning", description="현재 세션")
+    current_day: int = Field(0, description="현재 날짜 (0=튜토리얼)")
 
 class StatsResponse(BaseModel):
     fishLevel: int = Field(..., description="현재 물고기 레벨")
-    hp: int = Field(..., description="현재 체력")
+    total_hp: int = Field(..., description="하루 남은 총 HP")
+    session_hp: int = Field(..., description="현재 세션 남은 HP")
+    plus_hp: int = Field(..., description="이월 HP")
+    current_session: str = Field(..., description="현재 세션 (morning/afternoon/evening/night)")
+    current_day: int = Field(..., description="현재 날짜 (0=튜토리얼, 1~5=본게임)")
 
 class StatsUpdate(BaseModel):
     updates: Dict[str, Any] = Field(..., description="업데이트할 스탯 필드와 값의 딕셔너리", example={"hp": 80, "fishLevel": 3})

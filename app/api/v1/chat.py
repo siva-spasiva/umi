@@ -131,13 +131,22 @@ class EndSessionRequest(BaseModel):
 async def end_session(request: EndSessionRequest, user_id: str = Depends(get_current_user_id)):
     """
     대화 세션 종료:
-    - 현재까지의 대화 내용을 요약하여 장기 기억에 저장합니다.
-    - session_summary 타입으로 저장됩니다.
-    
-    - day_index: 게임 내 일차 (1~5)
-    - session_index: 일차 내 세션 인덱스 (1~4)
-    - npc_id: NPC 식별자 (선택 사항. 생략 시 현재 세션 버퍼가 있는 모든 NPC 처리)
+    - Day 0 (튜토리얼): 실제 로직 없이 day/session만 전환
+    - Day 1+: 대화 요약 → 장기 기억 저장 → 다음 세션 맵 생성
+    - day_index : 실제 존재하는 게임 내 일차( 1-5)
+    - session_index : 일차 내 세션 인덱스 (1-4)
     """
+    # Day 0 (튜토리얼): 게임 로직 없이 세션만 전환
+    if request.day_index == 0:
+        advance_result = await stats_service.advance_session(user_id)
+        return {
+            "status": "tutorial",
+            "message": "튜토리얼 세션입니다. 게임 데이터는 저장되지 않습니다.",
+            "day_index": request.day_index,
+            "session_index": request.session_index,
+            "advance": advance_result,
+        }
+
     if request.day_index > 5:
         raise HTTPException(status_code=400, detail="day_index는 최대 5일까지만 가능합니다.")
         
