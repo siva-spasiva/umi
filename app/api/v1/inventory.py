@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.schemas.inventory import InventoryResponse, ItemActionRequest
+from app.schemas.inventory import InventoryResponse, ItemActionRequest, ExploreRequest, ExploreResponse
 from app.services.inventory_service import inventory_service
 from app.core.security import get_current_user_id
 
@@ -30,3 +30,20 @@ async def use_item(data: ItemActionRequest, user_id: str = Depends(get_current_u
         "status": "success", 
         "message": f"{data.item_id} 아이템을 사용했습니다."
     }
+
+
+@router.post("/explore", response_model=ExploreResponse, summary="탐색으로 아이템 획득")
+async def explore_zone(data: ExploreRequest, user_id: str = Depends(get_current_user_id)):
+    """
+    floor_id / room_id / active_zone_id를 기준으로 map의 itemId를 확인하고
+    아이템이 있으면 인벤토리에 추가한 뒤 아이템 상세를 반환합니다.
+    """
+    result = await inventory_service.explore_zone(
+        user_id=user_id,
+        floor_id=data.floor_id,
+        room_id=data.room_id,
+        active_zone_id=data.active_zone_id,
+    )
+    if not result.get("success", False):
+        raise HTTPException(status_code=404, detail=result.get("message", "탐색 처리 중 오류가 발생했습니다."))
+    return result

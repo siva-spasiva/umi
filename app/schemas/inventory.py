@@ -25,4 +25,19 @@ class InventoryResponse(BaseModel):
 
 class ItemActionRequest(BaseModel):
     item_id: str = Field(..., description="아이템 고유 코드 (예: 'item001')", example="item001")
-    
+
+
+class ExploreRequest(BaseModel):
+    floor_id: str = Field(..., description="탐색할 층 ID (예: '1F')")
+    room_id: str = Field(..., description="탐색할 방 ID (예: 'main_hall')")
+    active_zone_id: str = Field(..., description="탐색할 액티브존 ID")
+
+
+class ExploreResponse(BaseModel):
+    success: bool = Field(..., description="탐색 처리 성공 여부")
+    floor_id: str = Field(..., description="층 ID")
+    room_id: str = Field(..., description="방 ID")
+    active_zone_id: str = Field(..., description="액티브존 ID")
+    item_found: bool = Field(..., description="아이템 존재 여부")
+    item: Optional[ItemDetail] = Field(None, description="획득한 아이템 상세")
+    message: str = Field(..., description="탐색 결과 메시지")

@@ -113,4 +113,100 @@ class InventoryService(BaseService):
         # 보유하고 있고(True), 사용완료(False)되지 않은 상태여야 함
         return inventory.get("items", {}).get(item_id, False) is True
 
+    async def _get_floor_doc(self, floor_id: str) -> Optional[Dict[str, Any]]:
+        """맵 컬렉션에서 층 문서를 조회합니다. (floor_id/id 모두 지원)"""
+        return await self.db["maps"].find_one(
+            {"$or": [{"floor_id": floor_id}, {"id": floor_id}]},
+            {"_id": 0}
+        )
+
+    async def explore_zone(self, user_id: str, floor_id: str, room_id: str, active_zone_id: str) -> Dict[str, Any]:
+        """
+        특정 activeZone을 탐색하여 itemId가 있으면 아이템을 획득 처리합니다.
+        - itemId가 없으면 item_found=False 반환
+        - itemId가 있으면 add_item과 동일하게 인벤토리에 추가 + 이벤트 기록
+        """
+        floor_doc = await self._get_floor_doc(floor_id)
+        if not floor_doc:
+            return {
+                "success": False,
+                "floor_id": floor_id,
+                "room_id": room_id,
+                "active_zone_id": active_zone_id,
+                "item_found": False,
+                "item": None,
+                "message": f"층을 찾을 수 없습니다: {floor_id}",
+            }
+
+        room_doc = None
+        for room in floor_doc.get("rooms", []):
+            if room.get("id") == room_id:
+                room_doc = room
+                break
+
+        if not room_doc:
+            return {
+                "success": False,
+                "floor_id": floor_id,
+                "room_id": room_id,
+                "active_zone_id": active_zone_id,
+                "item_found": False,
+                "item": None,
+                "message": f"방을 찾을 수 없습니다: {room_id}",
+            }
+
+        zone_doc = None
+        for zone in room_doc.get("activeZones", []):
+            if zone.get("id") == active_zone_id:
+                zone_doc = zone
+                break
+
+        if not zone_doc:
+            return {
+                "success": False,
+                "floor_id": floor_id,
+                "room_id": room_id,
+                "active_zone_id": active_zone_id,
+                "item_found": False,
+                "item": None,
+                "message": f"액티브존을 찾을 수 없습니다: {active_zone_id}",
+            }
+
+        item_id = (zone_doc.get("itemId") or "").strip()
+        if not item_id:
+            return {
+                "success": True,
+                "floor_id": floor_id,
+                "room_id": room_id,
+                "active_zone_id": active_zone_id,
+                "item_found": False,
+                "item": None,
+                "message": "해당 구역에는 획득 가능한 아이템이 없습니다.",
+            }
+
+        item_info = await self.db["items"].find_one({"id": item_id}, {"_id": 0})
+        if not item_info:
+            return {
+                "success": False,
+                "floor_id": floor_id,
+                "room_id": room_id,
+                "active_zone_id": active_zone_id,
+                "item_found": False,
+                "item": None,
+                "message": f"아이템 정보를 찾을 수 없습니다: {item_id}",
+            }
+
+        await self.add_item(user_id, item_id)
+        item_info["owned"] = True
+
+        return {
+            "success": True,
+            "floor_id": floor_id,
+            "room_id": room_id,
+            "active_zone_id": active_zone_id,
+            "item_found": True,
+            "item": item_info,
+            "message": f"{item_info.get('name', item_id)} 아이템을 획득했습니다.",
+        }
+
 inventory_service = InventoryService()
