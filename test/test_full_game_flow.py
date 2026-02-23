@@ -30,6 +30,11 @@ from datetime import datetime
 # 프로젝트 최상단 경로를 sys.path에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# 테스트에서는 무거운 임베딩/VectorDB 초기화를 비활성화하여 import block 방지
+os.environ.setdefault("UMI_DISABLE_VECTORDB", "1")
+# 테스트 종료 시 LangSmith 백그라운드 스레드 예외 방지
+os.environ["LANGCHAIN_TRACING_V2"] = "false"
+
 import httpx
 from app.main import app
 from app.core.security import get_current_user_id
@@ -224,6 +229,10 @@ async def step_chat_session(client: httpx.AsyncClient, npc_id: str, num_turns: i
             "npcId": npc_id,
             "message": msg
         })
+        # HP 소진 시(400) 현재 세션 턴을 종료하고 상위에서 end-session으로 전환
+        if resp.status_code == 400 and "HP가 소진되었습니다" in resp.text:
+            print(f"    ⚠️ HP 소진으로 대화 조기 종료 ({i+1}턴 시도)")
+            break
         assert resp.status_code == 200, f"채팅 실패 ({npc_id}, 턴 {i+1}): {resp.text}"
         data = resp.json()
         results.append({"turn": i+1, "user": msg, "npc": data.get("response", "")[:60]})
@@ -284,6 +293,8 @@ async def step_get_epilogue(client: httpx.AsyncClient):
 
 def verify_rag_memory(day_index: int, npc_id: str) -> bool:
     """VectorDB에 세션 요약이 저장되었는지 확인 (메타데이터 필터 사용)"""
+    if os.getenv("UMI_DISABLE_VECTORDB", "").lower() in ("1", "true", "yes"):
+        return False
     try:
         store = memory_manager._get_store("npc_memories")
         results = store._collection.get(
@@ -344,7 +355,8 @@ async def main():
                     if session % 2 == 1:
                         # ─── NPC 1:1 대화 세션 (5~10턴) ───
                         npc_id = NPC_IDS[(day + session) % len(NPC_IDS)]
-                        num_turns = random.randint(5, 10)
+                        # 현재 HP 규칙(대화당 10, 세션 기본 HP 30)에 맞춰 2~3턴으로 제한
+                        num_turns = random.randint(2, 3)
                         print(f"    💬 [{NPC_NAMES[npc_id]}]와 대화 시작 ({num_turns}턴)")
                         
                         chat_results = await step_chat_session(client, npc_id, num_turns)

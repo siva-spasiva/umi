@@ -25,8 +25,8 @@ class LLMEngine:
         # 파이프라인 생성 (NPC별)
         self.pipelines: Dict[str, NPCDialoguePipeline] = {}
         
-        # Vector DB Retriever 가져오기 (RAG용)
-        self.retriever = memory_manager.get_retriever(k=2)
+        # Vector DB Retriever (지연 초기화)
+        self.retriever = None
         
         # NPC별 세션 버퍼: {npc_id: [{"speaker": ..., "content": ..., "analysis": ...}, ...]}
         self.session_buffers: Dict[str, List[Dict]] = {}
@@ -44,6 +44,12 @@ class LLMEngine:
             self.loader = None
         
         print("[LLMEngine] Initialized with pipeline architecture")
+
+    def _get_retriever(self):
+        """RAG retriever 지연 초기화."""
+        if self.retriever is None:
+            self.retriever = memory_manager.get_retriever(k=2)
+        return self.retriever
     
     def _get_or_create_pipeline(self, npc_id: str) -> NPCDialoguePipeline:
         """NPC별 파이프라인 가져오기 또는 생성"""
@@ -70,7 +76,7 @@ class LLMEngine:
             self.pipelines[npc_id] = NPCDialoguePipeline(
                 analyzer=self.agent.analyzer,
                 llm=self.agent.llm, 
-                retriever=self.retriever, # RAG 검색기 주입
+                retriever=self._get_retriever(), # RAG 검색기 주입
                 npc_id=npc_id,
                 prompt_loader=loader,  # 로더 주입
                 initial_state=initial_state
