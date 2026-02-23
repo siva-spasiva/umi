@@ -105,6 +105,46 @@
         "type": "key_item",
         "isContract": true
     },
+    "item021": {
+        "id": "item021",
+        "name": "허름한 티셔츠",
+        "description": "허름한 티셔츠. 덜 말랐다.",
+        "flavorText": "제발 세탁하고나서 빨리 가져가. 안그러면 내가 가져간다. - 곽빙어",
+        "type": "normal",
+        "icon": "👕"
+    },
+    "item022": {
+        "id": "item022",
+        "name": "술병",
+        "description": "술병. 뚜껑이 열린 채 오래 지나서 말라있다.",
+        "flavorText": "",
+        "type": "normal",
+        "icon": "🍷"
+    },
+    "item023": {
+        "id": "item023",
+        "name": "썰린 고기",
+        "description": "썰린 고기. 조리실에서 몰래 챙겼다.",
+        "flavorText": "그닥 신선해보이지는 않는다.",
+        "type": "normal",
+        "icon": "🥩"
+    },
+    "item024": {
+        "id": "item024",
+        "name": "촛농",
+        "description": "촛농. 중앙 식당의 식탁 위에 놓여 있었다.",
+        "flavorText": "왜 우미교는 전기를 안쓰고 촛불을 고집하는걸까?",
+        "type": "normal",
+        "icon": "🪔"
+    },
+    "item025": {
+        "id": "item025",
+        "name": "꽃병",
+        "description": "투명한 유리병에 꽃이 꽂혀있다.",
+        "flavorText": "",
+        "type": "normal",
+        "icon": "💐"
+    },
     "npc_bokeo_001": {
         "id": "npc_bokeo_001",
         "name": "피 묻은 쪽지",
