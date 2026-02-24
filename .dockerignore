@@ -32,7 +32,6 @@ venv/
 # Docker
 .dockerignore
 docker-compose.yml
-Dockerfile
 connect_aws.sh
 
 # Environment Variables
