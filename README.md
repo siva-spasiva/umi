@@ -184,11 +184,29 @@ API는 JWT 토큰 기반 인증을 사용합니다. 인증이 필요한 엔드�
 - **story_summaries**: LLM 생성 스토리 요약
 - **stats**: 캐릭터 및 NPC 스탯
 
-## 🐳 Docker 지원
+## 🐳 Docker 빠른 시작 (권장)
+
+다른 환경에서 바로 실행하려면 아래 3단계만 수행하면 됩니다.
 
 ```bash
-docker build -t umi-backend .
-docker run -p 8000:8000 --env-file .env umi-backend
+git clone <repository-url>
+cd umi
+cp .env.example .env
+./scripts/bootstrap.sh
+```
+
+실행 후 확인:
+
+- API: `http://localhost:8000`
+- Swagger: `http://localhost:8000/docs`
+
+자주 쓰는 명령:
+
+```bash
+make up         # 컨테이너 실행/재빌드
+make seed       # 초기 데이터 동기화
+make logs       # API 로그 확인
+make down       # 컨테이너 종료
 ```
 
 ## 📝 개발 가이드
