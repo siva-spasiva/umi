@@ -47,7 +47,8 @@ class NpcAgent:
         self.analyzer = IntentAnalyzer(
             encoder_model="monologg/koelectra-base-v3-discriminator",
             checkpoint_path=checkpoint_path,
-            tag_threshold=0.35
+            tag_k=3,
+            tag_min_p=0.15
         )
         
         # 대화 생성기 초기화

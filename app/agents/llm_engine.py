@@ -1,14 +1,11 @@
 import os
 import asyncio
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from app.agents.npc_agent import npc_agent
-from app.agents.npc_pipeline import NPCDialoguePipeline
-from app.agents.npc_dialogue_engine import NPCState
 from app.core.config import settings
 from langsmith import traceable
 
 # 메모리 및 스토리 에이전트 추가
-from app.core.memory import memory_manager
 from app.agents.story_agent import story_agent
 from app.core.database import db
 from datetime import datetime
@@ -23,39 +20,52 @@ class LLMEngine:
         self.agent = npc_agent
         
         # 파이프라인 생성 (NPC별)
-        self.pipelines: Dict[str, NPCDialoguePipeline] = {}
+        self.pipelines: Dict[str, Any] = {}
         
         # Vector DB Retriever (지연 초기화)
         self.retriever = None
+        self.memory_manager = None
+        if not settings.MOCK_MODE:
+            try:
+                from app.core.memory import memory_manager as _memory_manager
+                self.memory_manager = _memory_manager
+            except Exception as e:
+                print(f"⚠️ [LLMEngine] Failed to init MemoryManager in __init__: {e}")
         
         # NPC별 세션 버퍼: {npc_id: [{"speaker": ..., "content": ..., "analysis": ...}, ...]}
         self.session_buffers: Dict[str, List[Dict]] = {}
         
-        # 전역 NPCPromptLoader 초기화 (NPC 목록 및 초기 스탯 로드용)
-        try:
-            from app.agents.npc_pipeline import NPCPromptLoader
-            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-            char_json_path = os.path.join(base_dir, "data", "characters.json")
-            prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
-            self.loader = NPCPromptLoader(prompt_json_path, char_json_path)
-            print(f"[LLMEngine] Global NPCPromptLoader initialized. Available NPCs: {self.loader.get_all_npc_ids()}")
-        except Exception as e:
-            print(f"⚠️ [LLMEngine] Failed to init NPCPromptLoader in __init__: {e}")
+        # 전역 NPCPromptLoader 초기화 (MOCK_MODE에서는 import 자체를 건너뜀)
+        if settings.MOCK_MODE:
             self.loader = None
+        else:
+            try:
+                from app.agents.npc_pipeline import NPCPromptLoader
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                char_json_path = os.path.join(base_dir, "data", "characters.json")
+                prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
+                self.loader = NPCPromptLoader(prompt_json_path, char_json_path)
+                print(f"[LLMEngine] Global NPCPromptLoader initialized. Available NPCs: {self.loader.get_all_npc_ids()}")
+            except Exception as e:
+                print(f"⚠️ [LLMEngine] Failed to init NPCPromptLoader in __init__: {e}")
+                self.loader = None
         
         print("[LLMEngine] Initialized with pipeline architecture")
 
     def _get_retriever(self):
         """RAG retriever 지연 초기화."""
+        if self.memory_manager is None:
+            return None
         if self.retriever is None:
-            self.retriever = memory_manager.get_retriever(k=2)
+            self.retriever = self.memory_manager.get_retriever(k=2)
         return self.retriever
     
-    def _get_or_create_pipeline(self, npc_id: str) -> NPCDialoguePipeline:
+    def _get_or_create_pipeline(self, npc_id: str):
         """NPC별 파이프라인 가져오기 또는 생성"""
         if npc_id not in self.pipelines:
             if not self.agent.generation_enabled:
                 raise RuntimeError("대화 생성이 비활성화되어 있습니다.")
+            from app.agents.npc_pipeline import NPCDialoguePipeline
             
             # Use self.loader if available, else recreate (fallback)
             loader = self.loader
@@ -212,7 +222,9 @@ class LLMEngine:
         검색된 기억을 문자열로 반환하여 GPU 서버에 전달.
         """
         try:
-            retriever = memory_manager.get_retriever(k=3)
+            if self.memory_manager is None:
+                return None
+            retriever = self.memory_manager.get_retriever(k=3)
             search_query = f"{npc_id} {message}"
             docs = retriever.invoke(search_query)
             
@@ -374,15 +386,16 @@ class LLMEngine:
                 diary_data = None
             
             # 1. Vector DB에 저장 (Memory)
-            memory_manager.add_memory(
-                text=summary,
-                metadata={
-                    "npc_id": target_id,
-                    "memory_type": "session_summary",
-                    "day_index": day_index,
-                    "turn_count": len(buffer)
-                }
-            )
+            if self.memory_manager is not None:
+                self.memory_manager.add_memory(
+                    text=summary,
+                    metadata={
+                        "npc_id": target_id,
+                        "memory_type": "session_summary",
+                        "day_index": day_index,
+                        "turn_count": len(buffer)
+                    }
+                )
             
             # 2. MongoDB에 저장 (Log/Monitoring)
             if user_id:
@@ -430,6 +443,7 @@ class LLMEngine:
     def reset_npc_state(self, npc_id: str):
         """NPC 상태 초기화"""
         if npc_id in self.pipelines:
+            from app.agents.npc_dialogue_engine import NPCState
             self.pipelines[npc_id].state = NPCState(friendly=50, faith=50)
             print(f"[LLMEngine] {npc_id} 상태 초기화")
 
@@ -466,9 +480,10 @@ class LLMEngine:
         
         summary = story_agent.generate_diary(str(history), fish_level=0)
         
-        memory_manager.add_memory(
-            text=summary,
-            metadata={"npc_id": npc_id, "memory_type": "diary"}
-        )
+        if self.memory_manager is not None:
+            self.memory_manager.add_memory(
+                text=summary,
+                metadata={"npc_id": npc_id, "memory_type": "diary"}
+            )
 
 llm_engine = LLMEngine()

@@ -27,6 +27,8 @@ services:
       - .env
     environment:
       - MONGODB_URL=mongodb://mongo:27017
+      - MOCK_MODE=true
+      - UMI_DISABLE_VECTORDB=true
       - USE_GPU_PROXY=false
       - LANGCHAIN_TRACING_V2=false
       - LANGSMITH_TRACING=false
