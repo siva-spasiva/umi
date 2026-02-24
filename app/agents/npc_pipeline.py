@@ -171,8 +171,8 @@ class NPCPromptLoader:
         # ID Normalization (lowercase keys)
         self._prompts_lower = {k.lower(): v for k, v in self._prompts.items()}
         
-        # characters.json 로드 (ID -> 한국어 이름 매핑용)
-        self._id_to_korean: Dict[str, str] = {}
+        # characters.json 로드 (ID -> 표시 이름 매핑용)
+        self._id_to_name: Dict[str, str] = {}
         self._character_stats: Dict[str, NPCState] = {}
         
         if characters_json_path and os.path.exists(characters_json_path):
@@ -181,11 +181,11 @@ class NPCPromptLoader:
                     char_data = json.load(f)
                 
                 for key, info in char_data.items():
-                    name_kr = info.get("name_kr", key)
-                    self._id_to_korean[key.lower()] = name_kr
-                    self._id_to_korean[key.upper()] = name_kr
+                    display_name = info.get("name") or key
+                    self._id_to_name[key.lower()] = display_name
+                    self._id_to_name[key.upper()] = display_name
                     
-                    stats = info.get("stats", {})
+                    stats = info.get("initialStats", info.get("stats", {}))
                     self._character_stats[key.lower()] = NPCState(
                         friendly=stats.get("friendly", 50),
                         faith=stats.get("faith", 50)
@@ -349,7 +349,7 @@ class NPCPromptLoader:
 
     def get_korean_name(self, npc_id: str) -> str:
         """NPC ID → 한국어 이름 반환"""
-        return self._id_to_korean.get(npc_id.lower(), npc_id)
+        return self._id_to_name.get(npc_id.lower(), npc_id)
 
     def get_all_npc_ids(self) -> List[str]:
         """모든 NPC ID 반환"""
@@ -587,7 +587,7 @@ if __name__ == "__main__":
     if os.path.exists(prompt_json):
         loader = NPCPromptLoader(prompt_json, char_json)
         # Note: If extract_v3_data.py was run, lowercase keys are normalized
-        print(f"Loader initialized. IDs: {list(loader._id_to_korean.keys())}")
+        print(f"Loader initialized. IDs: {list(loader._id_to_name.keys())}")
         
         pipeline = NPCDialoguePipeline(
             analyzer=MockAnalyzer(),

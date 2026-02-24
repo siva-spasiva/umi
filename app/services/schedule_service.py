@@ -38,6 +38,12 @@ class ScheduleService(BaseService):
             return normalized
         return str(room_id).strip()
 
+    def _normalize_npc_id(self, npc_id: Any) -> str:
+        if npc_id is None:
+            return ""
+        key = str(npc_id).strip().lower()
+        return key
+
     async def map_npc_locations(self, day: int, session: int) -> Dict[str, List[str]]:
         """특정 일차 및 세션의 NPC 위치(방)를 그룹핑하여 반환합니다."""
         session_key = self.session_map.get(session, "morning")
@@ -50,7 +56,7 @@ class ScheduleService(BaseService):
         schedules_list = await cursor.to_list(length=100)
         
         for npc_schedule in schedules_list:
-            npc_id = npc_schedule.get("npc_id")
+            npc_id = self._normalize_npc_id(npc_schedule.get("npc_id"))
             schedule_data = npc_schedule.get("schedule", {})
             
             # 특정 일차 스케줄 우선, 없으면 default 스케줄 사용
