@@ -30,8 +30,9 @@ from datetime import datetime
 # 프로젝트 최상단 경로를 sys.path에 추가
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# 테스트에서는 무거운 임베딩/VectorDB 초기화를 비활성화하여 import block 방지
-os.environ.setdefault("UMI_DISABLE_VECTORDB", "1")
+# 기본은 VectorDB 활성화.
+# 느린 환경에서만 실행 전에 UMI_DISABLE_VECTORDB=1 로 비활성화.
+os.environ.setdefault("UMI_DISABLE_VECTORDB", "0")
 # 테스트 종료 시 LangSmith 백그라운드 스레드 예외 방지
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 

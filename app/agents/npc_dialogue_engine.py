@@ -407,6 +407,13 @@ def sanitize_npc_response(text: str) -> str:
             
     # Remove Leaked Control Signals (e.g., (DEFLECT/GASLIGHT))
     text = re.sub(r"\([A-Z_]+(?:/[A-Z_]+)*\)", "", text)
+
+    # Notebook v5 스타일 컷 마커 제거
+    cut_markers = ["플레이어 선택", "Player's choice", "UPDATED_STATS", "THOUGHT", "SAY:"]
+    for marker in cut_markers:
+        idx = text.find(marker)
+        if idx != -1 and idx > 0:
+            text = text[:idx].strip()
     
     # Remove Markdown headers/bold
     text = re.sub(r"^###.*$", "", text, flags=re.MULTILINE)
@@ -448,6 +455,12 @@ def sanitize_npc_response(text: str) -> str:
             
     # 연속된 줄바꿈 정리
     text = re.sub(r"\n{3,}", "\n\n", text)
+
+    # 과도하게 긴 답변은 문장 수를 제한해 응답 안정화
+    sents = re.split(r"(?<=[.!?。？！])\s+", text)
+    sents = [s.strip() for s in sents if s.strip()]
+    if len(sents) > 9:
+        text = " ".join(sents[:9]).strip()
     
     return text.strip()
 

@@ -5,6 +5,7 @@ NPC 대화(Conversation) 서비스
 """
 
 from typing import List, Dict, Any, Optional
+import re
 from app.agents.llm_engine import llm_engine
 from app.schemas.conversation import (
     ConversationTurn,
@@ -16,12 +17,27 @@ from langsmith import traceable
 class ConversationService:
     """NPC 대화 서비스"""
 
+    _PLAYER_REF_PATTERN = re.compile(
+        r"(플레이어|유저|사용자|외부인|새로\s*온|신입|그\s*사람|걔|쟤)",
+        re.IGNORECASE
+    )
+
     def _build_topic_history_entry(self, topic: str) -> Dict[str, str]:
         """주제를 대화 히스토리의 시스템 메시지 형태로 변환"""
         return {
             "speaker": "system",
             "content": f"[대화 주제] {topic}"
         }
+
+    def _build_npc_only_rule_entry(self) -> Dict[str, str]:
+        """NPC↔NPC 대화 모드 규칙"""
+        return {
+            "speaker": "system",
+            "content": "[대화 규칙] 지금은 NPC끼리의 대화다. 플레이어/유저/외부인 언급은 피하고 현재 주제에 집중한다."
+        }
+
+    def _contains_player_reference(self, text: str) -> bool:
+        return bool(self._PLAYER_REF_PATTERN.search(text or ""))
 
     def _build_conversation_history(
         self,
@@ -149,7 +165,8 @@ class ConversationService:
 
         turns: List[ConversationTurn] = []
         conversation_history: List[Dict[str, str]] = [
-            self._build_topic_history_entry(topic)
+            self._build_topic_history_entry(topic),
+            self._build_npc_only_rule_entry(),
         ]
         collected_states: Dict[str, Dict] = {}
         
@@ -179,6 +196,8 @@ class ConversationService:
             )
 
             npc_response = result.get("response", "")
+            if self._contains_player_reference(npc_response):
+                npc_response = "그 얘기는 잠시 접어두고, 지금 주제부터 정리하자."
             analysis = result.get("analysis", {})
             state = result.get("state", {})
             

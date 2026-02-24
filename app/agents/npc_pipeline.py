@@ -451,6 +451,51 @@ class NPCDialoguePipeline:
         )
         
         return system_prompt.strip()
+
+    def _is_smalltalk(self, text: str) -> bool:
+        t = (text or "").strip()
+        if not t:
+            return False
+        smalltalk_keys = [
+            "안녕", "반가", "밥", "식사", "잠", "날씨", "기분", "어때", "요즘", "뭐해", "취미"
+        ]
+        return (len(t) <= 30) and any(k in t for k in smalltalk_keys)
+
+    def _is_neutral_question(self, text: str) -> bool:
+        t = (text or "").strip()
+        if not t:
+            return False
+        neutral_ask_keys = [
+            "규칙", "룰", "원칙", "일과", "스케줄", "시간표", "일정", "몇 시", "언제",
+            "식사시간", "취침", "기상", "청소", "점호", "기도시간", "예배시간", "이름", "나이"
+        ]
+        suspicious_keys = ["수상", "거짓", "숨기", "의심", "사기", "범죄", "왜 그래", "왜그러"]
+        return any(k in t for k in neutral_ask_keys) and (not any(k in t for k in suspicious_keys))
+
+    def _stabilize_analysis(self, user_message: str, analysis: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        notebook v5의 의도:
+        - 스몰톡/중립질문에서 과한 의심 태그와 faith 변동 억제
+        """
+        data = dict(analysis or {})
+        tags = list(data.get("reason_tags", []) or [])
+
+        if self._is_smalltalk(user_message):
+            soften = {
+                "WITHDRAW_TRUST", "INCREASE_SUSPICION", "TEST_BOUNDARY",
+                "PROTECT_SECRET", "DEFLECT", "GASLIGHT",
+                "SHAKE_FAITH", "MAINTAIN_FAITH", "PROTECT_DOCTRINE",
+            }
+            tags = [t for t in tags if t not in soften]
+            data["friendly_delta"] = max(-1, min(1, int(data.get("friendly_delta", 0))))
+            data["faith_delta"] = 0
+        elif self._is_neutral_question(user_message):
+            soften = {"WITHDRAW_TRUST", "INCREASE_SUSPICION", "TEST_BOUNDARY", "PROTECT_SECRET"}
+            tags = [t for t in tags if t not in soften]
+            data["friendly_delta"] = max(-1, int(data.get("friendly_delta", 0)))
+
+        data["reason_tags"] = tags
+        return data
     
     def chat(
         self,
@@ -466,6 +511,7 @@ class NPCDialoguePipeline:
         
         # 1. Intent Analysis
         analysis = self.analyzer.analyze(user_message)
+        analysis = self._stabilize_analysis(user_message, analysis)
         
         # 2. State Update (Conditional)
         print(f"[Pipeline] chat called with update_state={update_state}, forced_state={forced_state}")
