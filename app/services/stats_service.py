@@ -272,7 +272,13 @@ class StatsService(BaseService):
             new_session_hp = base_session_hp
             new_plus = session_hp
 
-        if current_session == "night":
+        # Day 0(튜토리얼) -> Day 1 전환 시 HP는 반드시 초기화
+        if current_day == 0 and next_day == 1 and next_session == "morning":
+            new_total = 100
+            new_session_hp = SESSION_HP_MAP["morning"]
+            new_plus = 0
+            msg = "튜토리얼이 종료되었습니다. Day 1이 시작됩니다."
+        elif current_session == "night":
             new_total = 100 + max(0, session_hp)  # 이월분만 더함, 부채는 session_hp에 이미 반영
             msg = f"Day {next_day} — {SESSION_MESSAGES['morning']}"
         else:

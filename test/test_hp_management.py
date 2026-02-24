@@ -11,7 +11,7 @@
 5. Session 전환 → debt 적용 (afternoon session = 30-7 = 23)
 6. 정상 소모 후 전환 → evening
 7. Evening 전부 안쓰고 전환 → Night (plus=30)
-8. Night 전부 안쓰고 전환 → Day 2 Morning (plus=10, total=110)
+8. Night 전부 안쓰고 전환 → Day 1 Morning (튜토리얼 종료, HP 초기화)
 9. hp_events 히스토리
 """
 
@@ -129,7 +129,7 @@ async def main():
             check("session 10", adv["session_hp"] == 10)
             check("plus 30 (evening 전체 이월)", adv["plus_hp"] == 30)
 
-            # ── 9. Night → Day 1 Morning (미소모, 10 이월) ──
+            # ── 9. Night → Day 1 Morning (튜토리얼 종료, HP 초기화) ──
             print("\n" + "="*60)
             print("📌 9. Night → Day 1 Morning")
             print("="*60)
@@ -137,9 +137,9 @@ async def main():
             adv = r["advance"]
             print(f"  Day {adv['current_day']}: total={adv['total_hp']}, session={adv['session_hp']}, plus={adv['plus_hp']}")
             check("Day 1", adv["current_day"] == 1)
-            check("total 110 (100+10)", adv["total_hp"] == 110)
+            check("total 100 (튜토리얼→Day1 초기화)", adv["total_hp"] == 100)
             check("session 30", adv["session_hp"] == 30)
-            check("plus 10", adv["plus_hp"] == 10)
+            check("plus 0 (튜토리얼 이월 없음)", adv["plus_hp"] == 0)
 
             # ── 10. hp_events ──
             print("\n" + "="*60)
@@ -172,7 +172,7 @@ async def main():
             import traceback; traceback.print_exc()
         finally:
             print("\n🧹 [Cleanup] 테스트 데이터 삭제 중...")
-            for col in ["tokens", "npc", "inventories", "hp_events"]:
+            for col in ["tokens", "npc", "user_stats", "npc_stats", "inventories", "hp_events"]:
                 await db[col].delete_many({"user_id": test_user_id})
             print("✅ [Cleanup] 완료")
 
