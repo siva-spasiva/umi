@@ -1,80 +1,62 @@
 {
-    "gwangeo": {
+    "npc_a": {
         "default": {
-            "morning": "umi_class",
-            "afternoon": "chapel",
-            "evening": "cafeteria",
-            "night": "real_leader_room"
-        },
-        "0": {
             "morning": null,
             "afternoon": null,
-            "evening": "hallway",
-            "night": "real_leader_room"
-        },
-        "1": {
-            "morning": "umi_class",
-            "afternoon": "chapel",
-            "evening": "cafeteria",
-            "night": "real_leader_room"
-        },
-        "2": {
-            "morning": "hallway",
-            "afternoon": "chapel",
-            "evening": "lounge",
-            "night": "real_leader_room"
+            "evening": null,
+            "night": null
         }
     },
     "bokeo": {
         "default": {
-            "morning": "room004",
-            "afternoon": "room004",
-            "evening": "room004",
-            "night": "room004"
+            "morning": "room003",
+            "afternoon": "b4_entrance",
+            "evening": "b4_entrance",
+            "night": "room003"
         },
         "0": {
             "morning": null,
             "afternoon": null,
             "evening": null,
-            "night": "room004"
-        },
-        "1": {
-            "morning": "room004",
-            "afternoon": "room004",
-            "evening": "hallway",
-            "night": "room004"
-        },
-        "3": {
-            "morning": "room004",
-            "afternoon": "cafeteria",
-            "evening": "room004",
-            "night": "room004"
+            "night": null
         }
     },
-    "mineo": {
+    "bingeo": {
         "default": {
+            "morning": "hallway",
+            "afternoon": "cafeteria",
+            "evening": "room001",
+            "night": "room001"
+        },
+        "0": {
             "morning": null,
             "afternoon": null,
             "evening": null,
             "night": null
         },
+        "1": {
+            "morning": "hallway",
+            "afternoon": "cafeteria",
+            "evening": "room001",
+            "night": "room001"
+        },
         "2": {
-            "morning": "umi_class",
-            "afternoon": "terrace",
-            "evening": null,
-            "night": null
+            "morning": "cafeteria",
+            "afternoon": "lounge",
+            "evening": "room001",
+            "night": "room001"
         },
         "3": {
-            "morning": "main_hall",
-            "afternoon": "terrace",
-            "evening": "lounge",
-            "night": "room002"
+            "morning": "hallway",
+            "afternoon": "b3_hall",
+            "evening": "room001",
+            "night": "room001"
         }
     },
     "galchi": {
         "default": {
-            "morning": "cafeteria",
-            "afternoon": "lounge",
+            "morning": "kitchen",
+            "afternoon": "hallway",
             "evening": "room005",
             "night": "room005"
         },
@@ -82,10 +64,10 @@
             "morning": null,
             "afternoon": null,
             "evening": null,
-            "night": "room005"
+            "night": null
         },
         "1": {
-            "morning": "cafeteria",
+            "morning": "kitchen",
             "afternoon": "hallway",
             "evening": "room005",
             "night": "room005"
@@ -97,36 +79,88 @@
             "night": "room005"
         }
     },
-    "bingeo": {
+    "mineeo": {
         "default": {
-            "morning": "hallway",
-            "afternoon": "cafeteria",
-            "evening": "room003",
-            "night": "room003"
+            "morning": "room004",
+            "afternoon": "laundry_room",
+            "evening": "truth_room001",
+            "night": "room004"
         },
         "0": {
             "morning": null,
             "afternoon": null,
             "evening": null,
-            "night": "room003"
+            "night": null
         },
         "1": {
-            "morning": "hallway",
-            "afternoon": "cafeteria",
-            "evening": "room003",
-            "night": "room003"
+            "morning": "room004",
+            "afternoon": "laundry_room",
+            "evening": "truth_room001",
+            "night": "room004"
         },
         "2": {
-            "morning": "cafeteria",
-            "afternoon": "lounge",
-            "evening": "room003",
-            "night": "room003"
+            "morning": "terrace",
+            "afternoon": "umi_class",
+            "evening": "truth_room001",
+            "night": "room004"
+        }
+    },
+    "gwangeo": {
+        "default": {
+            "morning": "chapel",
+            "afternoon": "real_leader_room",
+            "evening": "solphi_room",
+            "night": "real_leader_room"
+        }
+    },
+    "godeungeo": {
+        "default": {
+            "morning": "truth_room001",
+            "afternoon": "laundry_room",
+            "evening": "b3_hall",
+            "night": "room002"
+        }
+    },
+    "gubokchi": {
+        "default": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null,
+            "night": null
         },
-        "3": {
-            "morning": "hallway",
-            "afternoon": "chapel",
-            "evening": "room003",
-            "night": "room003"
+        "0": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null,
+            "night": null
+        },
+        "1": {
+            "morning": "cafeteria",
+            "afternoon": "kitchen",
+            "evening": "hallway",
+            "night": "room004"
+        },
+        "2": {
+            "morning": "truth_room001",
+            "afternoon": "kitchen",
+            "evening": "laundry_room",
+            "night": "room004"
+        }
+    },
+    "songsari": {
+        "default": {
+            "morning": "b3_hall",
+            "afternoon": "truth_room001",
+            "evening": "hallway",
+            "night": "room002"
+        }
+    },
+    "detective_kang": {
+        "default": {
+            "morning": null,
+            "afternoon": null,
+            "evening": null,
+            "night": null
         }
     }
 }

@@ -22,6 +22,22 @@ class ScheduleService(BaseService):
             return current_day + 1, 1
         return current_day, current_session + 1
 
+    def _normalize_room_id(self, room_id: Any) -> str:
+        """
+        스케줄 room_id를 정규화합니다.
+        - None, 빈 문자열, "null"/"none" 문자열은 빈 값으로 간주
+        """
+        if room_id is None:
+            return ""
+        if isinstance(room_id, str):
+            normalized = room_id.strip()
+            if not normalized:
+                return ""
+            if normalized.lower() in {"null", "none"}:
+                return ""
+            return normalized
+        return str(room_id).strip()
+
     async def map_npc_locations(self, day: int, session: int) -> Dict[str, List[str]]:
         """특정 일차 및 세션의 NPC 위치(방)를 그룹핑하여 반환합니다."""
         session_key = self.session_map.get(session, "morning")
@@ -39,9 +55,9 @@ class ScheduleService(BaseService):
             
             # 특정 일차 스케줄 우선, 없으면 default 스케줄 사용
             daily_schedule = schedule_data.get(day_str, schedule_data.get("default", {}))
-            room_id = daily_schedule.get(session_key)
-            
-            if room_id:
+            room_id = self._normalize_room_id(daily_schedule.get(session_key))
+
+            if room_id and npc_id:
                 if room_id not in room_groups:
                     room_groups[room_id] = []
                 room_groups[room_id].append(npc_id)
@@ -93,4 +109,3 @@ class ScheduleService(BaseService):
         }
 
 schedule_service = ScheduleService()
-
