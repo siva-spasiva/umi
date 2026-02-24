@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from app.schemas.inventory import InventoryResponse, ItemActionRequest, ExploreRequest, ExploreResponse
 from app.services.inventory_service import inventory_service
+from app.services.stats_service import stats_service
 from app.core.security import get_current_user_id
 
 router = APIRouter()
@@ -38,6 +39,10 @@ async def explore_zone(data: ExploreRequest, user_id: str = Depends(get_current_
     floor_id / room_id / active_zone_id를 기준으로 map의 itemId를 확인하고
     아이템이 있으면 인벤토리에 추가한 뒤 아이템 상세를 반환합니다.
     """
+    hp_result = await stats_service.spend_hp(user_id, 1, "탐색")
+    if not hp_result["success"]:
+        raise HTTPException(status_code=400, detail=hp_result["message"])
+
     result = await inventory_service.explore_zone(
         user_id=user_id,
         floor_id=data.floor_id,
