@@ -30,21 +30,55 @@ class StatsService(BaseService):
 
     def __init__(self):
         super().__init__()
-        self.collection_token = self.db["tokens"]
-        self.collection_npc = self.db["npc"]
+        # stats는 token 저장소와 분리해서 관리
+        self.collection_stats = self.db["user_stats"]
+        self.collection_npc = self.db["npc_stats"]
+        # 하위 호환: 기존 테스트 코드에서 collection_token 참조하는 경우 대응
+        self.collection_token = self.collection_stats
+
+    def _default_stats_doc(self, user_id: str) -> Dict[str, Any]:
+        return {
+            "user_id": user_id,
+            "fishLevel": 0,
+            "total_hp": 100,
+            "session_hp": 30,
+            "plus_hp": 0,
+            "current_session": "morning",
+            "current_day": 0,
+            "created_at": datetime.now(),
+        }
 
     async def get_current_stats(self, user_id: str):
-        stats = await self.collection_token.find_one({"user_id": user_id})
-        return stats
+        # 1) 신규 컬렉션 우선 조회
+        stats = await self.collection_stats.find_one({"user_id": user_id})
+        if stats:
+            return stats
+
+        # 2) 레거시 fallback: tokens에 스탯 문서가 있을 수 있음
+        legacy = await self.db["tokens"].find_one({"user_id": user_id, "total_hp": {"$exists": True}})
+        if legacy:
+            return legacy
+
+        # 3) 로그인 직후 /stats 호출 시 기본 스탯 자동 생성
+        default_doc = self._default_stats_doc(user_id)
+        await self.collection_stats.update_one(
+            {"user_id": user_id},
+            {"$setOnInsert": default_doc},
+            upsert=True
+        )
+        return await self.collection_stats.find_one({"user_id": user_id})
 
     async def get_current_NPC_stats(self, user_id: str, npc_id: str):
         stats = await self.collection_npc.find_one({"user_id": user_id, "npcId": npc_id})
-        return stats
+        if stats:
+            return stats
+        # 레거시 fallback
+        return await self.db["npc"].find_one({"user_id": user_id, "npcId": npc_id})
 
     async def update_stats(self, updates: dict, user_id: str):
         filter_query = {"user_id": user_id}
         update_query = {"$set": updates}
-        await self.collection_token.update_one(
+        await self.collection_stats.update_one(
             filter_query, update_query, upsert=True
         )
         return await self.get_current_stats(user_id)
@@ -57,17 +91,12 @@ class StatsService(BaseService):
 
     async def static_stats(self, user_id: str):
         """유저 스탯 생성 (Day 0 = 튜토리얼)"""
-        initial_stats = {
-            "user_id": user_id,
-            "fishLevel": 0,
-            "total_hp": 100,
-            "session_hp": 30,
-            "plus_hp": 0,
-            "current_session": "morning",
-            "current_day": 0,
-            "created_at": datetime.now()
-        }
-        await self.collection_token.insert_one(initial_stats)
+        initial_stats = self._default_stats_doc(user_id)
+        await self.collection_stats.update_one(
+            {"user_id": user_id},
+            {"$set": initial_stats},
+            upsert=True
+        )
 
         await self.insert_initial_npc_stats(user_id)
 
