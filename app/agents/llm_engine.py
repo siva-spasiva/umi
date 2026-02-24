@@ -218,6 +218,11 @@ class LLMEngine:
             
             if not docs:
                 return None
+
+            # 동일 NPC 기억을 우선 사용하여 오염(타 NPC 기억 혼입) 최소화
+            same_npc_docs = [doc for doc in docs if doc.metadata.get("npc_id") == npc_id]
+            if same_npc_docs:
+                docs = same_npc_docs
             
             memory_texts = [doc.page_content for doc in docs]
             combined = "\n---\n".join(memory_texts)
