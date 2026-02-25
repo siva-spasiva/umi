@@ -201,6 +201,12 @@ class ConversationService:
             analysis = result.get("analysis", {})
             state = result.get("state", {})
             
+            # 타입 에러 방지 (state가 리스트로 오는 경우 처리)
+            if isinstance(state, list):
+                state = state[0] if len(state) > 0 else {}
+            elif not isinstance(state, dict):
+                state = {}
+            
             if state:
                 collected_states[current_npc_id] = state
 
@@ -284,6 +290,12 @@ class ConversationService:
             npc_response = result.get("response", "")
             analysis = result.get("analysis", {})
             state = result.get("state", {})
+            
+            # 타입 에러 방지 (state가 리스트로 오는 경우 처리)
+            if isinstance(state, list):
+                state = state[0] if len(state) > 0 else {}
+            elif not isinstance(state, dict):
+                state = {}
             
             if state:
                 collected_states[npc_id] = state

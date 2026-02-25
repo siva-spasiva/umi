@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 NPC 대화(Conversation) API 테스트 스크립트
 
@@ -10,11 +11,18 @@ NPC 대화(Conversation) API 테스트 스크립트
     python test_conversation_api.py --gpu-direct   # GPU 서버 직접 호출
 """
 
+import sys
+import os
+
+# 스크립트 실행 위치와 상관없이 Umi 프로젝트 루트를 PYTHONPATH에 추가하여 'app' 모듈을 찾을 수 있게 함
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import json
 import time
 import httpx
 import argparse
 from typing import Optional
+from app.core.security import create_access_token
 
 
 # ============================================================
@@ -24,9 +32,11 @@ from typing import Optional
 LOCAL_SERVER_URL = "http://localhost:8000"
 GPU_SERVER_URL = "http://localhost:8001"
 
-# 테스트에 사용할 인증 토큰 (개발용)
+# 테스트에 사용할 유효한 인증 토큰 생성
+test_token = create_access_token("test_user_001")
+
 AUTH_HEADERS = {
-    "Authorization": "Bearer test-token",
+    "Authorization": f"Bearer {test_token}",
     "Content-Type": "application/json"
 }
 
@@ -60,7 +70,7 @@ def test_npc_only_conversation(base_url: str, headers: dict):
 
     payload = {
         "topic": "교단 내부에 숨겨진 비밀 금고에 대해",
-        "npc_ids": ["NPC_KWAK_01", "NPC_CHEONG_02"],
+        "npc_ids": ["bingeo", "galchi"],
         "num_turns": 4
     }
 
@@ -89,6 +99,9 @@ def test_npc_only_conversation(base_url: str, headers: dict):
 
         resp.raise_for_status()
         data = resp.json()
+        
+        if isinstance(data, list):
+            data = data[0] if len(data) > 0 else {}
 
         print(f"✅ 응답 성공 ({elapsed:.2f}s)\n")
 
@@ -122,7 +135,7 @@ def test_user_npc_conversation(base_url: str, headers: dict):
 
     payload = {
         "topic": "교단의 미래에 대해",
-        "npc_ids": ["NPC_CHEONG_02", "NPC_PARK_03"],
+        "npc_ids": ["galchi", "bokeo"],
         "user_message": "너희들은 교단의 미래가 어떻게 될 거라고 생각해?",
         "history": []
     }
@@ -178,7 +191,7 @@ def test_user_npc_conversation(base_url: str, headers: dict):
 
         follow_up_payload = {
             "topic": "교단의 미래에 대해",
-            "npc_ids": ["NPC_CHEONG_02", "NPC_PARK_03"],
+            "npc_ids": ["galchi", "bokeo"],
             "user_message": "그럼 전광어는 진짜 뭘 숨기고 있는 걸까?",
             "history": history_for_next
         }
@@ -234,7 +247,7 @@ def test_single_npc_conversation(base_url: str, headers: dict):
 
     payload = {
         "topic": "신도들의 충성심에 대한 평가",
-        "npc_ids": ["NPC_JEON_04"],
+        "npc_ids": ["gwangeo"],
         "num_turns": 3
     }
 
@@ -261,6 +274,9 @@ def test_single_npc_conversation(base_url: str, headers: dict):
 
         resp.raise_for_status()
         data = resp.json()
+        
+        if isinstance(data, list):
+            data = data[0] if len(data) > 0 else {}
 
         print(f"✅ 응답 성공 ({elapsed:.2f}s)\n")
 
