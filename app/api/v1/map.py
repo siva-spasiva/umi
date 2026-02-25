@@ -34,7 +34,6 @@ async def get_room(
     특정 층의 특정 방 데이터를 반환합니다.
     유저 정보를 통해 현재 day와 session에 맞는
     NPC 배치 및 토픽 정보를 포함하여 반환합니다.
-    (엿듣기 기능은 분리되었습니다.)
     """
     room = await map_service.get_room(floor_id, room_id)
     if not room:
