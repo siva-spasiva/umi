@@ -14,12 +14,12 @@ class MapService(BaseService):
 
     async def get_floor(self, floor_id: str) -> Optional[dict]:
         """특정 층의 맵 데이터를 반환합니다."""
-        document = await self.collection.find_one({"floor_id": floor_id}, {"_id": 0})
+        document = await self.collection.find_one({"id": floor_id}, {"_id": 0})
         return document
 
     async def get_room(self, floor_id: str, room_id: str) -> Optional[dict]:
         """특정 층의 방 하나를 찾아서 반환합니다."""
-        document = await self.collection.find_one({"floor_id": floor_id}, {"_id": 0})
+        document = await self.collection.find_one({"id": floor_id}, {"_id": 0})
         if not document:
             return None
         

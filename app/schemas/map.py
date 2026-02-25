@@ -26,7 +26,7 @@ class Room(BaseModel):
     activeZones: List[ActiveZone] = Field(default_factory=list)
 
 class Floor(BaseModel):
-    floor_id: str
+    id: str
     name: str
     description: str
     mapImage: Optional[str] = None
