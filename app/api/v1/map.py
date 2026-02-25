@@ -33,13 +33,14 @@ async def get_room(
     """
     특정 층의 특정 방 데이터를 반환합니다.
     유저 정보를 통해 현재 day와 session에 맞는
-    NPC 배치 및 토픽 정보를 기반으로 엿듣기(eavesdrop) 혹은 single_npc 데이터를 반환합니다.
+    NPC 배치 및 토픽 정보를 포함하여 반환합니다.
+    (엿듣기 기능은 분리되었습니다.)
     """
     room = await map_service.get_room(floor_id, room_id)
     if not room:
         raise HTTPException(status_code=404, detail=f"Room {room_id} in {floor_id} not found")
     
-    response = {"room": room, "eavesdrop": None}
+    response = {"room": room, "npcs": [], "topic": None, "single_npc": None}
     
     # DB에서 현재 사용자의 진행 상태(일자 및 세션) 조회
     user_doc = await db["users"].find_one({"user_id": user_id})
@@ -65,38 +66,13 @@ async def get_room(
             if room_placement:
                 npcs = room_placement.get("npcs", [])
                 
-                # NPC가 2명 이상이고 대화 주제가 있을 때 (기존 엿듣기 기능)
-                if len(npcs) >= 2 and room_placement.get("topic"):
-                    # HP 소모 (5) — NPC 대화 미리보기
-                    hp_result = await stats_service.spend_hp(user_id, 5, "방 엿듣기")
-                    if not hp_result["success"]:
-                        response["eavesdrop"] = None
-                        response["hp_error"] = hp_result["message"]
-                        return response
-
-                    topic_data = room_placement["topic"]
-                    topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
-                    npc_ids_lower = [npc.lower() for npc in npcs]
-                    
-                    try:
-                        conversation = await conversation_service.start_auto_conversation(
-                            topic=topic_text,
-                            npc_ids=npc_ids_lower,
-                            num_turns=6
-                        )
-                        
-                        response["eavesdrop"] = {
-                            "npcs": npcs,
-                            "topic": topic_data,
-                            "conversation": conversation.model_dump(),
-                            "can_eavesdrop_more": True
-                        }
-                    except Exception as e:
-                        print(f"[WARN] Eavesdrop generation failed: {e}")
-                        response["eavesdrop"] = None
+                if room_placement.get("topic"):
+                    response["topic"] = room_placement["topic"]
+                if room_placement.get("npcs"):
+                    response["npcs"] = room_placement["npcs"]
                 
                 # NPC가 1명만 있을 때 누가 있는지 인지하는 기능 추가
-                elif len(npcs) == 1:
+                if len(npcs) == 1:
                     npc_id = npcs[0]
                     
                     # characters.json에서 해당 NPC의 한국어 이름 조회
@@ -120,4 +96,71 @@ async def get_room(
                     }
     
     return response
+
+
+@router.post("/{floor_id}/room/{room_id}/eavesdrop")
+async def eavesdrop_room(
+    floor_id: str,
+    room_id: str,
+    user_id: str = Depends(get_current_user_id)
+):
+    """
+    특정 방에서 NPC들의 대화를 엿듣습니다 (최초 엿듣기).
+    HP 5를 소모하며 자동 생성된 대화를 반환합니다.
+    """
+    room = await map_service.get_room(floor_id, room_id)
+    if not room:
+        raise HTTPException(status_code=404, detail=f"Room {room_id} in {floor_id} not found")
+        
+    user_doc = await db["users"].find_one({"user_id": user_id})
+    if not user_doc or "progress" not in user_doc:
+        raise HTTPException(status_code=400, detail="유저 진행 상태를 찾을 수 없습니다.")
+
+    day_index = user_doc["progress"].get("current_day", 1)
+    session_index = user_doc["progress"].get("current_session", 1)
+    
+    session_state = await db["session_map_state"].find_one(
+        {"day_index": day_index, "session_index": session_index},
+        {"_id": 0}
+    )
+    
+    if not session_state:
+        raise HTTPException(status_code=404, detail="해당 세션의 맵 정보가 없습니다.")
+        
+    room_placement = None
+    for placement in session_state.get("room_placements", []):
+        if placement.get("room_id") == room_id:
+            room_placement = placement
+            break
+            
+    if not room_placement or len(room_placement.get("npcs", [])) < 2 or not room_placement.get("topic"):
+        raise HTTPException(status_code=400, detail="이 방에서 엿들을 수 있는 대화가 없습니다.")
+        
+    npcs = room_placement.get("npcs", [])
+    
+    # HP 소모 (5) — NPC 대화 엿듣기
+    hp_result = await stats_service.spend_hp(user_id, 5, "방 엿듣기")
+    if not hp_result["success"]:
+        raise HTTPException(status_code=400, detail=hp_result["message"])
+
+    topic_data = room_placement["topic"]
+    topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
+    npc_ids_lower = [npc.lower() for npc in npcs]
+    
+    try:
+        conversation = await conversation_service.start_auto_conversation(
+            topic=topic_text,
+            npc_ids=npc_ids_lower,
+            num_turns=6
+        )
+        
+        return {
+            "npcs": npcs,
+            "topic": topic_data,
+            "conversation": conversation.model_dump(),
+            "can_eavesdrop_more": True
+        }
+    except Exception as e:
+        print(f"[WARN] Eavesdrop generation failed: {e}")
+        raise HTTPException(status_code=500, detail="대화 생성 중 오류가 발생했습니다.")
 
