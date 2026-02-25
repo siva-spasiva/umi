@@ -12,6 +12,8 @@ class ActiveZone(BaseModel):
     label: str
     message: str
     itemId: Optional[str] = None
+    locked: Optional[dict] = None
+    lock_flag: Optional[bool] = None
 
 class Room(BaseModel):
     id: str
