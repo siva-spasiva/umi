@@ -174,6 +174,21 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
 
         advance_result = await stats_service.advance_session(user_id)
         
+        # [NEW] 세션 전환 후 유저 위치 강제 이동
+        # next_session에 따라 위치 설정
+        # 1: B2/room001, 2: B1/cafeteria, 3: B3/truth_room001, 4: B3/chapel
+        location_map = {
+            1: {"floor_id": "B2", "room_id": "room001"},
+            2: {"floor_id": "B1", "room_id": "cafeteria"},
+            3: {"floor_id": "B3", "room_id": "truth_room001"},
+            4: {"floor_id": "B3", "room_id": "chapel"}
+        }
+        
+        if next_session in location_map:
+            loc = location_map[next_session]
+            await stats_service.update_stats(loc, user_id)
+            # update advance_result to reflect new location if needed by client, though typical client re-fetches stats
+        
         if not summaries:
             return {
                 "status": "skipped",
