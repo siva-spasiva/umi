@@ -78,17 +78,13 @@ class ModelManager:
         """GA1 안전성 모델 로드"""
         from transformers import BertTokenizer, BertForSequenceClassification
 
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        local_model_path = os.path.join(base_dir, "app", "agents", "ga1_model")
-
-        model_path = local_model_path if os.path.exists(local_model_path) else "beomi/kcbert-base"
-
+        model_path = "beomi/kcbert-base"
         print(f"🔄 [GA1] Loading from {model_path}...")
         self.ga1_tokenizer = BertTokenizer.from_pretrained(model_path)
         self.ga1_model = BertForSequenceClassification.from_pretrained(model_path)
         self.ga1_model.to(self.device)
         self.ga1_model.eval()
-        print(f"✅ [GA1] Loaded on {self.device}")
+        print(f"✅ [GA1] Loaded on {self.device} ({model_path})")
 
     def load_npc(self):
         """NPC 의도 분석기 + 프롬프트 로더 초기화 (v2)"""
