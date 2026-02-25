@@ -1,9 +1,11 @@
 import os
 import torch
 import httpx
+import json
+from datetime import datetime
+from typing import Any, Dict, List
 from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 from peft import PeftModel
-from typing import Any, Dict
 from app.core.config import settings
 
 class StoryAgent:
@@ -204,14 +206,167 @@ class StoryAgent:
             "Output JSON ONLY."
         )
 
+    def _required_keys_for_mode(self, mode: str) -> set:
+        if mode == "DIARY":
+            return {
+                "diary",
+                "summary_bullets",
+                "key_conversations",
+                "items",
+                "clues",
+                "troll_level_analysis",
+                "consistency_check",
+                "ending",
+                "flags_for_next_day",
+                "safety",
+            }
+        return {"title", "text", "ending_type", "reason"}
+
+    def _candidate_score(self, mode: str, obj: Dict) -> int:
+        """모드 스키마와의 적합도 점수(높을수록 우선)."""
+        required = self._required_keys_for_mode(mode)
+        return sum(1 for key in required if key in obj)
+
+    def _extract_json_objects(self, text: str) -> List[Dict]:
+        """
+        모델 출력에서 JSON 객체 후보들을 최대한 복구하여 추출한다.
+        - 코드블록/설명문이 섞여 있어도 중괄호 균형 기반으로 후보를 추출
+        """
+        if not text:
+            raise ValueError("empty response")
+
+        raw = text.strip()
+
+        candidates = []
+
+        # 1) 코드블록 우선 시도
+        if "```json" in raw:
+            try:
+                block = raw.split("```json", 1)[1].split("```", 1)[0].strip()
+                if block:
+                    candidates.append(block)
+            except Exception:
+                pass
+        if "```" in raw:
+            try:
+                block = raw.split("```", 1)[1].split("```", 1)[0].strip()
+                if block:
+                    candidates.append(block)
+            except Exception:
+                pass
+
+        # 2) 전체 본문 후보
+        candidates.append(raw)
+
+        # 3) 첫 { ~ 마지막 } 범위 후보
+        first = raw.find("{")
+        last = raw.rfind("}")
+        if first != -1 and last != -1 and first < last:
+            candidates.append(raw[first:last + 1])
+
+        # 4) 중괄호 균형으로 객체 후보 추출
+        start = None
+        depth = 0
+        in_string = False
+        escaped = False
+        for idx, ch in enumerate(raw):
+            if escaped:
+                escaped = False
+                continue
+            if ch == "\\" and in_string:
+                escaped = True
+                continue
+            if ch == "\"":
+                in_string = not in_string
+                continue
+            if in_string:
+                continue
+            if ch == "{":
+                if depth == 0:
+                    start = idx
+                depth += 1
+            elif ch == "}":
+                if depth > 0:
+                    depth -= 1
+                    if depth == 0 and start is not None:
+                        candidates.append(raw[start:idx + 1])
+                        start = None
+
+        parsed_objects: List[Dict] = []
+        seen = set()
+        for candidate in candidates:
+            cleaned = candidate.strip()
+            if not cleaned:
+                continue
+            if cleaned in seen:
+                continue
+            seen.add(cleaned)
+            try:
+                parsed = json.loads(cleaned)
+                if isinstance(parsed, dict):
+                    parsed_objects.append(parsed)
+            except Exception:
+                continue
+
+        if not parsed_objects:
+            raise ValueError("no valid json object found")
+        return parsed_objects
+
+    def _parse_json_from_text(self, text: str, mode: str) -> Dict:
+        """
+        JSON 객체 후보 중 모드 스키마에 가장 잘 맞는 객체를 선택한다.
+        - {"mode":"DIARY","data":{...}} 형태면 data 내부를 우선 해석
+        """
+        objects = self._extract_json_objects(text)
+        normalized: List[Dict] = []
+
+        for obj in objects:
+            normalized.append(obj)
+            inner = obj.get("data")
+            if isinstance(inner, dict):
+                normalized.append(inner)
+
+        best = max(normalized, key=lambda item: self._candidate_score(mode, item))
+        if self._candidate_score(mode, best) == 0:
+            raise ValueError("json parsed but no schema-matching fields found")
+        return best
+
+    def _fallback_story_payload(self, mode: str) -> Dict:
+        """실모델 출력 파싱 실패 시 서비스 중단 방지용 안전 기본값."""
+        now = datetime.now().isoformat()
+        if mode == "DIARY":
+            return {
+                "day_index": 0,
+                "diary": {
+                    "title": "기록 정리",
+                    "text": "오늘 수집한 대화 기록을 정리했지만, 일부 내용은 불명확하여 핵심만 보존했습니다.",
+                    "tone": "neutral",
+                },
+                "summary_bullets": ["주요 대화가 기록되었으나 일부 응답 형식이 불안정했습니다."],
+                "key_conversations": [],
+                "items": [],
+                "clues": [{"info": "응답 형식 불안정으로 단서 해석을 보수적으로 유지", "importance": "low"}],
+                "troll_level_analysis": {"delta_total": 0, "top_causes": []},
+                "consistency_check": {"contradictions_found": [], "missing_info": ["일부 원문 응답 파싱 실패"]},
+                "ending": {"status": "continue", "ending_type": "null", "reason": "", "required_next_step": ""},
+                "flags_for_next_day": [],
+                "safety": {"hallucination_risk": "low", "spoiler_blocked": True},
+                "time": now,
+            }
+        return {
+            "title": "미완의 기록",
+            "text": "최종 정리 과정에서 출력 형식 오류가 발생해 보수적 결론으로 마무리했습니다.",
+            "ending_type": "failure",
+            "reason": "모델 출력 JSON 파싱 실패",
+            "time": now,
+        }
+
     async def generate_story_content(self, mode: str, data: Any) -> Dict:
         """
         새로운 요구사항에 맞춘 통합 생성 메서드.
         mode: "DIARY" | "EPILOGUE"
         data: DIARY인 경우 메시지 텍스트, EPILOGUE인 경우 지난 일기들의 목록
         """
-        import json
-        
         # 1. 시스템 프롬프트 가져오기
         from app.core.database import db
         doc = await db["agent_prompts"].find_one({"_id": "story_agent"})
@@ -272,35 +427,31 @@ class StoryAgent:
         # JSON 생성을 위해 온도를 낮춤 (0.1)
         response_text = await self.generate(full_prompt, max_new_tokens=2048, temperature=0.1, top_p=0.95)
         
-        # [REPAIR] 패딩이 일부 살아있거나 통째로 잘렸을 경우에도 { 를 찾아야 함
-        combined_text = response_text
-        if not combined_text.startswith("{") and "{" not in combined_text:
-            combined_text = "{" + combined_text
-        
         # JSON 파싱
         try:
-            # 1. 마크다운 코드블록 제거 시도
-            clean_text = combined_text.strip()
-            if "```json" in clean_text:
-                clean_text = clean_text.split("```json")[1].split("```")[0].strip()
-            elif "```" in clean_text:
-                clean_text = clean_text.split("```")[1].split("```")[0].strip()
-            
-            # 2. {, } 위치를 찾아 시도
-            start_idx = clean_text.find('{')
-            end_idx = clean_text.rfind('}')
-            
-            if start_idx != -1 and end_idx != -1:
-                clean_text = clean_text[start_idx:end_idx+1]
-            elif start_idx == -1 and end_idx != -1:
-                # { 가 빠졌을 수도 있으므로 강제로 앞에 붙여봄 (truncation 대응)
-                # 만약 "title": "..." 로 시작한다면 { 를 붙이면 유효한 JSON이 될 가능성이 높음
-                clean_text = "{" + clean_text[:end_idx+1]
-            
-            return json.loads(clean_text)
+            return self._parse_json_from_text(response_text, mode)
         except Exception as e:
-            print(f"[StoryAgent] JSON Parsing Failed: {e}\nRaw: {response_text}")
-            return {"error": "Failed to parse JSON", "raw": response_text}
+            print(f"[StoryAgent] JSON Parsing Failed(1st): {e}\nRaw: {response_text}")
+
+        # 2차 시도: 출력 복구 전용 프롬프트로 재호출
+        try:
+            repair_prompt = (
+                "You must output ONE valid JSON object only.\n"
+                "No markdown, no comments, no explanation.\n"
+                f"Mode: {mode}\n"
+                "If any field is unknown, fill with safe defaults.\n"
+                f"Original input data:\n{user_prompt}\n"
+            )
+            repaired_text = await self.generate(
+                repair_prompt,
+                max_new_tokens=1200,
+                temperature=0.0,
+                top_p=1.0
+            )
+            return self._parse_json_from_text(repaired_text, mode)
+        except Exception as e:
+            print(f"[StoryAgent] JSON Parsing Failed(2nd): {e}")
+            return self._fallback_story_payload(mode)
 
 
     async def generate_diary_summary(self, messages: str, day_index: int, fish_level: int = None) -> dict:
