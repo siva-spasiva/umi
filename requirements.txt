@@ -4,7 +4,8 @@ motor
 pymongo
 pydantic-settings
 python-dotenv
-transformers>=4.38.2
+# torch==2.1.2와 호환되는 범위로 고정 (너무 최신 버전은 torch>=2.4 요구)
+transformers==4.46.3
 accelerate>=0.27.2
 torch==2.1.2
 psutil
