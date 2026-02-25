@@ -76,11 +76,18 @@ class ModelManager:
 
     def load_ga1(self):
         """GA1 안전성 모델 로드"""
-        from transformers import BertTokenizer, BertForSequenceClassification
+        from transformers import AutoTokenizer, BertForSequenceClassification
 
-        model_path = "beomi/kcbert-base"
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        model_path = os.path.join(base_dir, "app", "agents", "ga1_model")
+        
+        # 만약 모델이 없으면 fallback으로 기본 모델 사용
+        if not os.path.exists(model_path):
+            print(f"⚠️ [GA1] Local model not found at {model_path}, falling back to beomi/kcbert-base")
+            model_path = "beomi/kcbert-base"
+
         print(f"🔄 [GA1] Loading from {model_path}...")
-        self.ga1_tokenizer = BertTokenizer.from_pretrained(model_path)
+        self.ga1_tokenizer = AutoTokenizer.from_pretrained(model_path)
         self.ga1_model = BertForSequenceClassification.from_pretrained(model_path)
         self.ga1_model.to(self.device)
         self.ga1_model.eval()
