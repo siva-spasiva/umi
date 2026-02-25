@@ -15,6 +15,7 @@ class ItemDetail(BaseModel):
     npcOrigin: Optional[str] = Field(None, description="NPC 출처")
     isContract: Optional[bool] = Field(None, description="계약서 여부")
     roomItem: Optional[bool] = Field(None, description="방 아이템 여부")
+    icon: Optional[str] = Field(None, description="아이템 아이콘 이모지")
 
 
 class InventoryResponse(BaseModel):
