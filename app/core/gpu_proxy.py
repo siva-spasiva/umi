@@ -35,6 +35,35 @@ class GPUProxyClient:
             )
         return self._client
 
+    async def _reset_client(self):
+        """연결 끊김/프로토콜 오류 시 클라이언트 재생성"""
+        if self._client and (not self._client.is_closed):
+            await self._client.aclose()
+        self._client = None
+
+    async def _request_with_retry(self, method: str, path: str, payload: Optional[Dict] = None) -> httpx.Response:
+        """
+        stale keep-alive 소켓으로 인한 'Server disconnected...'를 완화하기 위해
+        1회 재시도(클라이언트 재생성)합니다.
+        """
+        last_error = None
+        for attempt in range(2):
+            try:
+                client = await self._get_client()
+                if method.upper() == "GET":
+                    response = await client.get(path)
+                else:
+                    response = await client.post(path, json=payload)
+                response.raise_for_status()
+                return response
+            except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ConnectError) as e:
+                last_error = e
+                if attempt == 0:
+                    await self._reset_client()
+                    continue
+                raise
+        raise last_error
+
     # ============================================================
     # GA1: 안전성 검사
     # ============================================================
@@ -47,10 +76,7 @@ class GPUProxyClient:
             (is_safe, reason) 튜플
         """
         try:
-            client = await self._get_client()
-            response = await client.post("/infer/ga1", json={"message": message})
-            response.raise_for_status()
-
+            response = await self._request_with_retry("POST", "/infer/ga1", {"message": message})
             data = response.json()
             return data["is_safe"], data.get("reason")
 
@@ -78,7 +104,6 @@ class GPUProxyClient:
         NPC 대화 생성을 GPU 서버에 위임
         """
         try:
-            client = await self._get_client()
             payload = {
                 "npc_id": npc_id,
                 "message": message,
@@ -87,9 +112,7 @@ class GPUProxyClient:
                 "update_state": update_state,
                 "forced_state": forced_state
             }
-            response = await client.post("/infer/npc", json=payload)
-            response.raise_for_status()
-
+            response = await self._request_with_retry("POST", "/infer/npc", payload)
             data = response.json()
 
             # 상태 변화 로깅
@@ -135,14 +158,11 @@ class GPUProxyClient:
             생성된 텍스트
         """
         try:
-            client = await self._get_client()
             payload = {
                 "prompt": prompt,
                 "max_new_tokens": max_new_tokens
             }
-            response = await client.post("/infer/story", json=payload)
-            response.raise_for_status()
-
+            response = await self._request_with_retry("POST", "/infer/story", payload)
             return response.json()["text"]
 
         except httpx.ConnectError:
@@ -165,15 +185,12 @@ class GPUProxyClient:
             생성된 일기 텍스트
         """
         try:
-            client = await self._get_client()
             payload = {
                 "messages": messages,
                 "fish_level": fish_level,
                 "max_new_tokens": max_new_tokens
             }
-            response = await client.post("/infer/story/diary", json=payload)
-            response.raise_for_status()
-
+            response = await self._request_with_retry("POST", "/infer/story/diary", payload)
             return response.json()["text"]
 
         except httpx.ConnectError:
@@ -213,7 +230,6 @@ class GPUProxyClient:
             {"topic": str, "turns": List[Dict], "npc_states": Dict}
         """
         try:
-            client = await self._get_client()
             payload = {
                 "topic": topic,
                 "npc_ids": npc_ids,
@@ -222,9 +238,7 @@ class GPUProxyClient:
                 "num_turns": num_turns,
                 "history": history
             }
-            response = await client.post("/infer/npc/conversation", json=payload)
-            response.raise_for_status()
-
+            response = await self._request_with_retry("POST", "/infer/npc/conversation", payload)
             data = response.json()
             print(f"[GPUProxy] NPC 대화 완료 (Remote GPU): {len(data.get('turns', []))} turns")
             return data
@@ -253,9 +267,7 @@ class GPUProxyClient:
     async def health_check(self) -> dict:
         """GPU 서버 상태 확인"""
         try:
-            client = await self._get_client()
-            response = await client.get("/health")
-            response.raise_for_status()
+            response = await self._request_with_retry("GET", "/health")
             return response.json()
         except Exception as e:
             return {"status": "unreachable", "error": str(e)}
