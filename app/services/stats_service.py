@@ -17,6 +17,7 @@ SESSION_HP_MAP = {
 }
 
 SESSION_ORDER = ["morning", "afternoon", "evening", "night"]
+SESSION_INDEX_MAP = {name: idx + 1 for idx, name in enumerate(SESSION_ORDER)}
 
 SESSION_MESSAGES = {
     "morning": "아침이 밝았다. 새로운 하루가 시작된다.",
@@ -48,16 +49,26 @@ class StatsService(BaseService):
             "created_at": datetime.now(),
         }
 
+    def _session_to_index(self, session_name: str) -> int:
+        return SESSION_INDEX_MAP.get(session_name, 1)
+
+    def _with_session_index(self, stats: Dict[str, Any]) -> Dict[str, Any]:
+        enriched = dict(stats)
+        enriched["current_session_index"] = self._session_to_index(
+            enriched.get("current_session", "morning")
+        )
+        return enriched
+
     async def get_current_stats(self, user_id: str):
         # 1) 신규 컬렉션 우선 조회
         stats = await self.collection_stats.find_one({"user_id": user_id})
         if stats:
-            return stats
+            return self._with_session_index(stats)
 
         # 2) 레거시 fallback: tokens에 스탯 문서가 있을 수 있음
         legacy = await self.db["tokens"].find_one({"user_id": user_id, "total_hp": {"$exists": True}})
         if legacy:
-            return legacy
+            return self._with_session_index(legacy)
 
         # 3) 로그인 직후 /stats 호출 시 기본 스탯 자동 생성
         default_doc = self._default_stats_doc(user_id)
@@ -66,7 +77,8 @@ class StatsService(BaseService):
             {"$setOnInsert": default_doc},
             upsert=True
         )
-        return await self.collection_stats.find_one({"user_id": user_id})
+        created = await self.collection_stats.find_one({"user_id": user_id})
+        return self._with_session_index(created)
 
     async def get_current_NPC_stats(self, user_id: str, npc_id: str):
         stats = await self.collection_npc.find_one({"user_id": user_id, "npcId": npc_id})
@@ -113,6 +125,7 @@ class StatsService(BaseService):
             "session_hp": 30,
             "plus_hp": 0,
             "current_session": "morning",
+            "current_session_index": 1,
             "current_day": 0,
         }
         
@@ -151,6 +164,7 @@ class StatsService(BaseService):
             "session_hp": stats.get("session_hp", 0),
             "plus_hp": stats.get("plus_hp", 0),
             "current_session": stats.get("current_session", "morning"),
+            "current_session_index": self._session_to_index(stats.get("current_session", "morning")),
             "current_day": stats.get("current_day", 1),
             "message": message,
         }
@@ -245,6 +259,7 @@ class StatsService(BaseService):
         stats = await self.get_current_stats(user_id)
         if not stats:
             return {"success": False, "previous_session": "", "current_session": "",
+                    "previous_session_index": 0, "current_session_index": 0,
                     "total_hp": 0, "session_hp": 0, "plus_hp": 0,
                     "current_day": 1, "message": "유저 정보를 찾을 수 없습니다."}
 
@@ -297,6 +312,8 @@ class StatsService(BaseService):
             "success": True,
             "previous_session": current_session,
             "current_session": next_session,
+            "previous_session_index": self._session_to_index(current_session),
+            "current_session_index": self._session_to_index(next_session),
             "total_hp": new_total,
             "session_hp": new_session_hp,
             "plus_hp": new_plus,

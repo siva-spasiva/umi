@@ -13,6 +13,7 @@ from langsmith import traceable
 
 import json
 import os
+from typing import Optional
 from app.core.masking_utils import word_masker
 
 from app.services.inventory_service import inventory_service
@@ -21,12 +22,27 @@ class ChatService(BaseService):
     def __init__(self):
         super().__init__()
         self.collection = self.db["chat_logs"]
+
+    def _normalize_item_id(self, item_id: Optional[str]) -> Optional[str]:
+        """
+        Swagger 기본 placeholder("string") 및 빈 입력을 무시한다.
+        """
+        if item_id is None:
+            return None
+        value = str(item_id).strip()
+        if not value:
+            return None
+        if value.lower() in {"null", "none", "string"}:
+            return None
+        return value
     
     @traceable(run_type="chain", name="Chat_Flow_Pipeline")
     async def process_chat_flow(self, user_id: str, npc_id: str, message: str, item_id: str = None):
         """
         GA1 -> GA2 -> LLM -> Output Guardrail 파이프라인
         """
+        item_id = self._normalize_item_id(item_id)
+
         # [Item Usage Logic]
         system_injection = ""
         if item_id:
@@ -282,6 +298,7 @@ class ChatService(BaseService):
         
         # 1. 망친 하루 요약 저장
         failed_summary = StorySummary(
+            user_id=user_id,
             day_index=day_index,
             diary=Diary(
                 title="망쳐버린 하루",

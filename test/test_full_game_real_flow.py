@@ -169,7 +169,6 @@ async def run_real_flow() -> None:
                 payload={
                     "day_index": day,
                     "session_index": SESSION_INDEX,
-                    "npc_id": NPC_ID,
                 },
             )
             print(f"Day {day} end-session status: {end_session.get('status')}")

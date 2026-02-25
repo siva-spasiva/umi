@@ -70,6 +70,7 @@ class ModelManager:
         self.npc_prompt_loader = None
         self.npc_llm = None
         self.npc_pipelines: Dict = {}
+        self.npc_initial_states: Dict = {}
         self.story_model = None
         self.story_tokenizer = None
 
@@ -117,6 +118,12 @@ class ModelManager:
             print("🔄 [NPC] Loading NPCPromptLoader...")
             # characters.json 경로 추가
             self.npc_prompt_loader = NPCPromptLoader(prompt_json_path, char_json_path)
+            # 앱 실행 시점에 모든 NPC 초기 상태를 미리 로드해 둡니다.
+            self.npc_initial_states = {}
+            for npc_id in self.npc_prompt_loader.get_all_npc_ids():
+                self.npc_initial_states[npc_id.lower()] = self.npc_prompt_loader.get_initial_state(npc_id)
+            self.npc_pipelines.clear()
+            print(f"ℹ️ [NPC] Initial states loaded for {len(self.npc_initial_states)} NPCs.")
 
             print("ℹ️ [NPC] IntentAnalyzer v2 + PromptLoader loaded. LLM will be shared with Story model.")
             print("✅ [NPC] Ready")
@@ -390,12 +397,22 @@ async def infer_npc(req: NPCRequest):
         from app.core.memory import memory_manager
 
         if req.npc_id not in model_mgr.npc_pipelines:
+            initial_state = model_mgr.npc_initial_states.get(req.npc_id.lower())
+            if initial_state is None and model_mgr.npc_prompt_loader:
+                initial_state = model_mgr.npc_prompt_loader.get_initial_state(req.npc_id)
+            if initial_state is None:
+                initial_state = NPCState(friendly=50, faith=50)
+
             model_mgr.npc_pipelines[req.npc_id] = NPCDialoguePipeline(
                 analyzer=model_mgr.npc_analyzer,
                 llm=model_mgr.npc_llm,
                 prompt_loader=model_mgr.npc_prompt_loader,
                 npc_id=req.npc_id,
-                initial_state=NPCState(friendly=50, faith=50)
+                initial_state=NPCState(
+                    friendly=initial_state.friendly,
+                    faith=initial_state.faith,
+                    fish_level=initial_state.fish_level
+                )
             )
 
         pipeline = model_mgr.npc_pipelines[req.npc_id]

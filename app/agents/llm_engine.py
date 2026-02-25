@@ -52,6 +52,16 @@ class LLMEngine:
         
         print("[LLMEngine] Initialized with pipeline architecture")
 
+    def reset_npc_runtime_state(self):
+        """
+        앱 시작 시 NPC 런타임 상태를 초기화합니다.
+        - 파이프라인 메모리 상태 초기화
+        - 세션 버퍼 초기화
+        """
+        self.pipelines.clear()
+        self.session_buffers.clear()
+        print("[LLMEngine] NPC runtime state reset (pipelines/session buffers cleared).")
+
     def _get_retriever(self):
         """RAG retriever 지연 초기화."""
         if self.memory_manager is None:

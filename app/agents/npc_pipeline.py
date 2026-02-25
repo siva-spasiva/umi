@@ -487,12 +487,15 @@ class NPCDialoguePipeline:
                 "SHAKE_FAITH", "MAINTAIN_FAITH", "PROTECT_DOCTRINE",
             }
             tags = [t for t in tags if t not in soften]
-            data["friendly_delta"] = max(-1, min(1, int(data.get("friendly_delta", 0))))
+            # 스몰톡에서는 관계 하락을 막고, 최대 +1만 허용
+            data["friendly_delta"] = max(0, min(1, int(data.get("friendly_delta", 0))))
             data["faith_delta"] = 0
         elif self._is_neutral_question(user_message):
             soften = {"WITHDRAW_TRUST", "INCREASE_SUSPICION", "TEST_BOUNDARY", "PROTECT_SECRET"}
             tags = [t for t in tags if t not in soften]
-            data["friendly_delta"] = max(-1, int(data.get("friendly_delta", 0)))
+            # 중립 질문에서도 관계 하락을 막고, 최대 +1만 허용
+            data["friendly_delta"] = max(0, min(1, int(data.get("friendly_delta", 0))))
+            data["faith_delta"] = 0
 
         data["reason_tags"] = tags
         return data

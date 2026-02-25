@@ -120,8 +120,7 @@ async def get_story_summary(day_index: int, user_id: str = Depends(get_current_u
 class EndSessionRequest(BaseModel):
     """세션 종료 요청"""
     day_index: int
-    session_index: int
-    npc_id: Optional[str] = None
+    session_index: int = Field(..., ge=1, le=4)
 
 
 @router.post("/end-session",
@@ -158,7 +157,7 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
         pass
 
     try:
-        summaries = await llm_engine.save_session_summary(request.day_index, request.npc_id, user_id)
+        summaries = await llm_engine.save_session_summary(request.day_index, None, user_id)
         
         # [NEW] 다음 세션 계산 및 맵(NPC 위치 및 주제) 설정
         from app.services.schedule_service import schedule_service

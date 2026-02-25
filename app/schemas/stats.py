@@ -12,6 +12,7 @@ class FirstStatsResponse(BaseModel):
     session_hp: int = Field(30, description="초기 세션 HP")
     plus_hp: int = Field(0, description="이월 HP")
     current_session: str = Field("morning", description="현재 세션")
+    current_session_index: int = Field(1, description="현재 세션 인덱스 (1=morning, 2=afternoon, 3=evening, 4=night)")
     current_day: int = Field(0, description="현재 날짜 (0=튜토리얼)")
 
 class StatsResponse(BaseModel):
@@ -20,6 +21,7 @@ class StatsResponse(BaseModel):
     session_hp: int = Field(..., description="현재 세션 남은 HP")
     plus_hp: int = Field(..., description="이월 HP")
     current_session: str = Field(..., description="현재 세션 (morning/afternoon/evening/night)")
+    current_session_index: int = Field(..., description="현재 세션 인덱스 (1~4)")
     current_day: int = Field(..., description="현재 날짜 (0=튜토리얼, 1~5=본게임)")
 
 class StatsUpdate(BaseModel):
@@ -45,6 +47,7 @@ class SpendHpResponse(BaseModel):
     session_hp: int = Field(..., description="현재 세션 남은 HP (음수 = 다음 세션에서 차감)")
     plus_hp: int = Field(..., description="이월 HP")
     current_session: str = Field(..., description="현재 세션")
+    current_session_index: int = Field(..., description="현재 세션 인덱스 (1~4)")
     current_day: int = Field(..., description="현재 날짜")
     session_depleted: bool = Field(False, description="세션 HP 소진 여부 (True면 더 이상 행동 불가)")
     message: Optional[str] = Field(None, description="결과 메시지")
@@ -52,7 +55,9 @@ class SpendHpResponse(BaseModel):
 class AdvanceSessionResponse(BaseModel):
     success: bool = Field(..., description="세션 전환 성공 여부")
     previous_session: str = Field(..., description="이전 세션")
+    previous_session_index: int = Field(..., description="이전 세션 인덱스")
     current_session: str = Field(..., description="전환 후 세션")
+    current_session_index: int = Field(..., description="전환 후 세션 인덱스")
     total_hp: int = Field(..., description="하루 남은 총 HP")
     session_hp: int = Field(..., description="새 세션 HP")
     plus_hp: int = Field(..., description="이월된 HP")

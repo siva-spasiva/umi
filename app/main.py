@@ -18,6 +18,19 @@ setup_daily_rotating_logger("api_server", "logs/app.log", capture_uvicorn=True)
 
 app = FastAPI(title="LLM API Server")
 
+
+@app.on_event("startup")
+async def startup_init_npcs():
+    """
+    애플리케이션 시작 시 NPC 런타임 상태를 초기화합니다.
+    (이전 프로세스/세션에서 남은 메모리 상태 제거)
+    """
+    try:
+        from app.agents.llm_engine import llm_engine
+        llm_engine.reset_npc_runtime_state()
+    except Exception as e:
+        print(f"⚠️ [Startup] NPC state init failed: {e}")
+
 app.include_router(user_router, prefix="/api/v1", tags=["user"])
 app.include_router(health_router, prefix="/api/v1", tags=["system"]) # 헬스체크 등록
 app.include_router(chat_router, prefix="/api/v1", tags=["chat"])
