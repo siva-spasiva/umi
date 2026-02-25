@@ -43,4 +43,4 @@ async def static_stats(user_id: str = Depends(get_current_user_id)):
              description="HP를 소모합니다. plus_hp 우선 차감 후 session_hp에서 차감. 둘 다 부족하면 실패합니다."
              )
 async def spend_hp(data: SpendHpRequest, user_id: str = Depends(get_current_user_id)):
-    return await stats_service.spend_hp(user_id, data.hp, data.message)
+    return await stats_service.spend_hp(user_id, data.hp, data.message, data.floor_id, data.room_id)

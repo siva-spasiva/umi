@@ -14,6 +14,8 @@ class FirstStatsResponse(BaseModel):
     current_session: str = Field("morning", description="현재 세션")
     current_session_index: int = Field(1, description="현재 세션 인덱스 (1=morning, 2=afternoon, 3=evening, 4=night)")
     current_day: int = Field(0, description="현재 날짜 (0=튜토리얼)")
+    floor_id: Optional[str] = Field(None, description="현재 층 ID")
+    room_id: Optional[str] = Field(None, description="현재 방 ID")
 
 class StatsResponse(BaseModel):
     fishLevel: int = Field(..., description="현재 물고기 레벨")
@@ -23,6 +25,8 @@ class StatsResponse(BaseModel):
     current_session: str = Field(..., description="현재 세션 (morning/afternoon/evening/night)")
     current_session_index: int = Field(..., description="현재 세션 인덱스 (1~4)")
     current_day: int = Field(..., description="현재 날짜 (0=튜토리얼, 1~5=본게임)")
+    floor_id: Optional[str] = Field(None, description="현재 층 ID")
+    room_id: Optional[str] = Field(None, description="현재 방 ID")
 
 class StatsUpdate(BaseModel):
     updates: Dict[str, Any] = Field(..., description="업데이트할 스탯 필드와 값의 딕셔너리", example={"hp": 80, "fishLevel": 3})
@@ -40,6 +44,8 @@ class SuccessResponse(BaseModel):
 class SpendHpRequest(BaseModel):
     hp: int = Field(..., ge=1, description="소모할 HP 양")
     message: Optional[str] = Field(None, description="HP 소모 사유")
+    floor_id: Optional[str] = Field(None, description="현재 층 ID")
+    room_id: Optional[str] = Field(None, description="현재 방 ID")
 
 class SpendHpResponse(BaseModel):
     success: bool = Field(..., description="HP 소모 성공 여부")
@@ -51,6 +57,8 @@ class SpendHpResponse(BaseModel):
     current_day: int = Field(..., description="현재 날짜")
     session_depleted: bool = Field(False, description="세션 HP 소진 여부 (True면 더 이상 행동 불가)")
     message: Optional[str] = Field(None, description="결과 메시지")
+    floor_id: Optional[str] = Field(None, description="현재 층 ID")
+    room_id: Optional[str] = Field(None, description="현재 방 ID")
 
 class AdvanceSessionResponse(BaseModel):
     success: bool = Field(..., description="세션 전환 성공 여부")

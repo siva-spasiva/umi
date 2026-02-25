@@ -46,6 +46,8 @@ class StatsService(BaseService):
             "plus_hp": 0,
             "current_session": "morning",
             "current_day": 0,
+            "floor_id": None,
+            "room_id": None,
             "created_at": datetime.now(),
         }
 
@@ -166,6 +168,8 @@ class StatsService(BaseService):
             "current_session": stats.get("current_session", "morning"),
             "current_session_index": self._session_to_index(stats.get("current_session", "morning")),
             "current_day": stats.get("current_day", 1),
+            "floor_id": stats.get("floor_id"),
+            "room_id": stats.get("room_id"),
             "message": message,
         }
 
@@ -194,7 +198,7 @@ class StatsService(BaseService):
         }
         await self.db["hp_events"].insert_one(event)
 
-    async def spend_hp(self, user_id: str, cost: int, message: Optional[str] = None) -> Dict[str, Any]:
+    async def spend_hp(self, user_id: str, cost: int, message: Optional[str] = None, floor_id: Optional[str] = None, room_id: Optional[str] = None) -> Dict[str, Any]:
         """
         HP를 소모합니다.
         1. plus_hp 우선 소모
@@ -202,6 +206,7 @@ class StatsService(BaseService):
         3. available > 0이면 부족해도 1회 허용 (다음 세션에서 차감)
         4. available <= 0이면 거부 (이미 다 쓴)
         5. total_hp도 동시에 감소
+        6. floor_id와 room_id가 전달되면 위치 정보 업데이트
         """
         stats = await self.get_current_stats(user_id)
         if not stats:
@@ -234,11 +239,18 @@ class StatsService(BaseService):
         new_session = session_hp - remaining
         new_total = total_hp - cost
 
-        await self.update_stats({
+        stats_update = {
             "total_hp": new_total,
             "session_hp": new_session,
             "plus_hp": new_plus,
-        }, user_id)
+        }
+        
+        if floor_id is not None:
+            stats_update["floor_id"] = floor_id
+        if room_id is not None:
+            stats_update["room_id"] = room_id
+
+        await self.update_stats(stats_update, user_id)
 
         after_stats = await self.get_current_stats(user_id)
         await self._log_hp_event(user_id, cost, message, before_state, after_stats)

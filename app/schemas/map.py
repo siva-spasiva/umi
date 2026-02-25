@@ -22,7 +22,8 @@ class Room(BaseModel):
     description: str
     background: Optional[str] = None
     overlayColor: Optional[str] = None
-    npcId: Optional[str] = None
+    # 한 방에 여러 NPC가 있을 수 있으므로 리스트로만 관리
+    npcIds: List[str] = Field(default_factory=list)
     activeZones: List[ActiveZone] = Field(default_factory=list)
 
 class Floor(BaseModel):
