@@ -113,16 +113,20 @@ class ChatService(BaseService):
         user_fish_level = user_state.get("fish_level", 0) if user_state else 0
         
         # 3. 마스킹 로직 적용
-        # 조건: NPC 레벨이 유저보다 2 이상 높을 때 -> Heavy Masking (금기어 + 랜덤 80%)
-        if npc_fish_level - user_fish_level >= 2:
-            # 1단계: 금기어 마스킹 (100% 차단)
+        # 조건: NPC와 유저의 생선화 레벨 차이에 따른 차등 마스킹
+        level_diff = npc_fish_level - user_fish_level
+        
+        # 금기어 마스킹 유지 (기존: 차이 2 이상 또는 NPC 레벨 3 이상)
+        if level_diff >= 2 or npc_fish_level >= 3:
             raw_response = word_masker.mask_text(raw_response)
-            # 2단계: 남은 단어 80% 랜덤 마스킹
-            raw_response = word_masker.mask_randomly(raw_response, ratio=0.8)
             
-        # 조건: 그 외 NPC 생선화 3단계 이상 -> 일반 마스킹 (금기어만)
-        elif npc_fish_level >= 3:
-            raw_response = word_masker.mask_text(raw_response)
+        # 레벨 차이에 따른 뻐끔 마스킹 비율 차등 적용
+        if level_diff >= 3:
+            raw_response = word_masker.mask_randomly(raw_response, ratio=0.8)
+        elif level_diff == 2:
+            raw_response = word_masker.mask_randomly(raw_response, ratio=0.6)
+        elif level_diff == 1:
+            raw_response = word_masker.mask_randomly(raw_response, ratio=0.2)
 
         # 4. Output Guardrail (페르소나 체크 등)
         is_output_safe, final_response = await ga_agent.validate_output(raw_response)
