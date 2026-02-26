@@ -9,6 +9,8 @@ venv/
 .env
 .env.example
 
+.venv
+
 # MacOS
 .DS_Store
 
