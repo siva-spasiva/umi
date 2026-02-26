@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Union
 
 class ActiveZone(BaseModel):
     id: str
@@ -12,7 +12,7 @@ class ActiveZone(BaseModel):
     label: str
     message: str
     itemId: Optional[str] = None
-    locked: Optional[dict] = None
+    locked: Optional[Union[dict, bool]] = None
     lock_flag: Optional[bool] = None
 
 class Room(BaseModel):
