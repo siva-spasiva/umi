@@ -463,8 +463,17 @@ async def infer_story(req: StoryRequest):
                 pad_token_id=model_mgr.story_tokenizer.eos_token_id
             )
 
-        generated_text = model_mgr.story_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        response_text = generated_text[len(req.prompt):].strip()
+        generated_text = model_mgr.story_tokenizer.decode(outputs[0], skip_special_tokens=False)
+        parts = generated_text.split("<|im_start|>assistant\n")
+        response_text = parts[-1].split("<|im_end|>")[0].strip()
+        # Clean up any generic JSON markdown if present
+        if response_text.startswith("```json"):
+            response_text = response_text[7:]
+        elif response_text.startswith("```"):
+            response_text = response_text[3:]
+        if response_text.endswith("```"):
+            response_text = response_text[:-3]
+        response_text = response_text.strip()
 
         return StoryResponse(text=response_text)
     except Exception as e:
@@ -517,8 +526,9 @@ async def infer_story_diary(req: StoryDiaryRequest):
                 pad_token_id=model_mgr.story_tokenizer.eos_token_id
             )
 
-        generated_text = model_mgr.story_tokenizer.decode(outputs[0], skip_special_tokens=True)
-        response_text = generated_text[len(prompt):].strip()
+        input_length = inputs["input_ids"].shape[1]
+        generated_tokens = outputs[0][input_length:]
+        response_text = model_mgr.story_tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
 
         return StoryResponse(text=response_text)
     except Exception as e:
@@ -557,10 +567,11 @@ class NPCConversationResponse(BaseModel):
 
 # NPC ID → 한국어 이름 매핑
 NPC_NAME_MAP = {
-    "NPC_KWAK_01": "곽빙어",
-    "NPC_CHEONG_02": "청갈치",
-    "NPC_PARK_03": "박복어",
-    "NPC_JEON_04": "전광어",
+    "bingeo": "곽빙어",
+    "galchi": "청갈치",
+    "bokeo": "박복어",
+    "gwangeo": "전광어",
+    "mineo": "이민어",
 }
 
 

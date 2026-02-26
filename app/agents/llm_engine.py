@@ -279,7 +279,7 @@ class LLMEngine:
 
     # [REMOVED] _save_emotion_triggered_memory
 
-    async def save_session_summary(self, day_index: int, npc_id: Optional[str] = None, user_id: str = None) -> Dict[str, str]:
+    async def save_session_summary(self, day_index: int, npc_id: Optional[str] = None, user_id: Optional[str] = None) -> Dict[str, str]:
         """
         세션 종료 시 버퍼의 대화를 요약하여:
         1. Vector DB에 저장 (장기 기억용 - session_summary)

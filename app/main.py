@@ -38,8 +38,23 @@ async def startup_init_npcs():
     try:
         from app.agents.llm_engine import llm_engine
         llm_engine.reset_npc_runtime_state()
+        
+        import json
+        import os
+        from app.core.database import db
+        map_path = os.path.join(os.path.dirname(__file__), "data", "map.json")
+        if os.path.exists(map_path):
+            with open(map_path, "r", encoding="utf-8") as f:
+                map_data = json.load(f)
+            await db["maps"].delete_many({})
+            if map_data:
+                await db["maps"].insert_many(map_data)
+                print(f"✅ [Startup] Successfully seeded {len(map_data)} floors into 'maps' collection.")
+        else:
+            print(f"⚠️ [Startup] map.json not found at {map_path}")
+            
     except Exception as e:
-        print(f"⚠️ [Startup] NPC state init failed: {e}")
+        print(f"⚠️ [Startup] Init failed: {e}")
 
 app.include_router(user_router, prefix="/api/v1", tags=["user"])
 app.include_router(health_router, prefix="/api/v1", tags=["system"]) # 헬스체크 등록

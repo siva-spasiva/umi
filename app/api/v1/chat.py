@@ -34,8 +34,14 @@ async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current
 
     result = await chat_service.process_chat_flow(user_id, request.npcId, request.message, request.item_id)
     
-    if result.get("status") == "blocked_by_guardrail":
-        return {"response": result["response"], "blocked": True}
+    if result.get("status") in ["blocked_by_guardrail", "blocked_by_ga1", "blocked_by_troll_limit"]:
+        return {
+            "response": result["response"],
+            "blocked": True,
+            "status": result.get("status"),
+            "troll_count": result.get("troll_count", 0),
+            "force_skip": result.get("force_skip", False)
+        }
         
     result["hp"] = hp_result
     return result
@@ -111,11 +117,23 @@ async def generate_diary(request: DiaryGenerationRequest, user_id: str = Depends
 async def get_story_summary(day_index: int, user_id: str = Depends(get_current_user_id)):
     """특정 일차의 스토리 요약 정보를 조회합니다."""
     # [REFACTOR] story_summaries -> story_diary
-    summary = await chat_service.db["story_diary"].find_one({"day_index": day_index})
+    summary = await chat_service.db["story_diary"].find_one({"day_index": day_index, "user_id": user_id})
     if not summary:
         raise HTTPException(status_code=404, detail="해당 일차의 요약 정보가 없습니다.")
     return summary
 
+
+@router.get("/diary/{day_index}", response_model=StorySummary,
+            summary="특정 일차 일기 조회",
+            description="지정한 날짜(day_index)에 생성된 일기(StorySummary)를 조회합니다. 현재 /summary API와 동일한 DB 컬렉션을 바라봅니다."
+            )
+async def get_diary(day_index: int, user_id: str = Depends(get_current_user_id)):
+    """특정 일차의 일기(요약)를 조회합니다."""
+    # 내부적으로 summary와 diary는 동일한 story_diary 컬렉션을 사용합니다.
+    diary = await chat_service.db["story_diary"].find_one({"day_index": day_index, "user_id": user_id})
+    if not diary:
+        raise HTTPException(status_code=404, detail="해당 일차의 일기 정보가 없습니다.")
+    return diary
 
 class EndSessionRequest(BaseModel):
     """세션 종료 요청"""

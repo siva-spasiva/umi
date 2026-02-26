@@ -66,27 +66,29 @@ class ChatService(BaseService):
         # 0. Basic Guardrail: 기본 규칙 검증 (길이, 금지어 등)
         is_basic_safe, basic_msg = await ga_agent.validate_input(message)
         if not is_basic_safe:
-            triggered_skip = await self.handle_troll_event(user_id, "BASIC_GUARDRAIL", basic_msg)
+            triggered_skip, troll_count = await self.handle_troll_event(user_id, "BASIC_GUARDRAIL", basic_msg)
             if triggered_skip:
                 return {
                     "response": basic_msg + "\n\n(시스템: 경고 3회 누적으로 인해 하루가 강제 종료되었습니다. 다음 날로 넘어갑니다.)",
                     "status": "blocked_by_troll_limit",
+                    "troll_count": troll_count,
                     "force_skip": True
                 }
-            return {"response": basic_msg, "status": "blocked_by_guardrail"}
+            return {"response": basic_msg, "status": "blocked_by_guardrail", "troll_count": troll_count}
 
         # 1. GA1: 입력 안전성 검증
         is_safe, safety_msg = await ga1_agent.check_safety(message)
         if not is_safe:
             # 트롤 레벨 증가 및 체크
-            triggered_skip = await self.handle_troll_event(user_id, "GA1_BLOCK", safety_msg)
+            triggered_skip, troll_count = await self.handle_troll_event(user_id, "GA1_BLOCK", safety_msg)
             if triggered_skip:
                 return {
                     "response": safety_msg + "\n\n(시스템: 경고 3회 누적으로 인해 하루가 강제 종료되었습니다. 다음 날로 넘어갑니다.)",
                     "status": "blocked_by_troll_limit",
+                    "troll_count": troll_count,
                     "force_skip": True
                 }
-            return {"response": safety_msg, "status": "blocked_by_ga1"}
+            return {"response": safety_msg, "status": "blocked_by_ga1", "troll_count": troll_count}
 
         # 2. GA2: 문맥 및 세계관 검증
         # TODO : 아직 GA2모델이 개발되지 않아서 사용 (History는 LLM에 전달)
@@ -245,7 +247,7 @@ class ChatService(BaseService):
         )
         return "updated" if result.matched_count else "inserted"
 
-    async def handle_troll_event(self, user_id: str, action_type: str, reason: str) -> bool:
+    async def handle_troll_event(self, user_id: str, action_type: str, reason: str) -> tuple[bool, int]:
         """
         트롤 이벤트를 기록하고, 레벨이 평계치(3)에 도달하면 True 반환 (Skip Trigger)
         """
@@ -268,9 +270,9 @@ class ChatService(BaseService):
         # 3. 임계치 체크
         if current_count >= 3:
             await self._skip_to_next_day(user_id, day_index)
-            return True
+            return True, current_count
             
-        return False
+        return False, current_count
 
     async def _get_current_day_index(self, user_id: str) -> int:
         """유저의 현재 진행 일차(Day Index)를 조회"""
