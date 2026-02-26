@@ -107,6 +107,7 @@ async def reply_conversation(
             npc_ids=request.npc_ids,
             user_message=request.user_message,
             history=request.history,
+            user_id=user_id,
         )
         return result
     except Exception as e:
