@@ -31,6 +31,16 @@ async def update_stats(data: StatsUpdate, user_id: str = Depends(get_current_use
 async def update_NPC_stats(data: NPCStatsUpdate, user_id: str = Depends(get_current_user_id)):
     return await stats_service.update_NPC_stats(data.updates, data.npcId, user_id)
 
+@router.get("/stats/NPC/{npc_id}", response_model=NPCStat,
+            summary="특정 NPC의 현재 스탯 조회",
+            description="특정 NPC의 호감도(friendly), 신뢰도(faith), 물고기 레벨(fishLevel)을 조회합니다."
+            )
+async def get_npc_stats(npc_id: str, user_id: str = Depends(get_current_user_id)):
+    stats = await stats_service.get_current_NPC_stats(user_id, npc_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="해당 NPC의 스탯을 찾을 수 없습니다.")
+    return stats
+
 @router.get("/stats/static", response_model=FirstStatsResponse,
             summary="초기 게임 세션 생성",
             description="인증된 유저 ID로 초기 스탯 및 NPC 스탯, 초기 인벤토리를 설정합니다."
