@@ -39,7 +39,7 @@
     "initialStats": {
       "friendly": 10,
       "faith": 80,
-      "fishLevel": 6
+      "fishLevel": 4
     },
     "initialInventory": [
       "npc_bokeo_001",
@@ -61,7 +61,7 @@
     "initialStats": {
       "friendly": 10,
       "faith": 10,
-      "fishLevel": 10
+      "fishLevel": 3
     },
     "initialInventory": [
       "npc_galchi_001",
@@ -81,7 +81,7 @@
     "initialStats": {
       "friendly": 15,
       "faith": 20,
-      "fishLevel": 5
+      "fishLevel": 2
     },
     "initialInventory": [
       "npc_bingeo_001",
@@ -102,7 +102,7 @@
     "initialStats": {
       "friendly": 10,
       "faith": 50,
-      "fishLevel": 10
+      "fishLevel": 0
     },
     "initialInventory": [],
     "initialPortrait": "npc_mineeo_00.png",
@@ -118,7 +118,7 @@
     "initialStats": {
       "friendly": 0,
       "faith": 100,
-      "fishLevel": 100
+      "fishLevel": 5
     },
     "initialInventory": [],
     "initialPortrait": "npc_gwangeo_00.png",
