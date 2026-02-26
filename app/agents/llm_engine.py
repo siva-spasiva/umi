@@ -25,30 +25,26 @@ class LLMEngine:
         # Vector DB Retriever (지연 초기화)
         self.retriever = None
         self.memory_manager = None
-        if not settings.MOCK_MODE:
-            try:
-                from app.core.memory import memory_manager as _memory_manager
-                self.memory_manager = _memory_manager
-            except Exception as e:
-                print(f"⚠️ [LLMEngine] Failed to init MemoryManager in __init__: {e}")
+        try:
+            from app.core.memory import memory_manager as _memory_manager
+            self.memory_manager = _memory_manager
+        except Exception as e:
+            print(f"⚠️ [LLMEngine] Failed to init MemoryManager in __init__: {e}")
         
         # NPC별 세션 버퍼: {npc_id: [{"speaker": ..., "content": ..., "analysis": ...}, ...]}
         self.session_buffers: Dict[str, List[Dict]] = {}
         
-        # 전역 NPCPromptLoader 초기화 (MOCK_MODE에서는 import 자체를 건너뜀)
-        if settings.MOCK_MODE:
+        # 전역 NPCPromptLoader 초기화
+        try:
+            from app.agents.npc_pipeline import NPCPromptLoader
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            char_json_path = os.path.join(base_dir, "data", "characters.json")
+            prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
+            self.loader = NPCPromptLoader(prompt_json_path, char_json_path)
+            print(f"[LLMEngine] Global NPCPromptLoader initialized. Available NPCs: {self.loader.get_all_npc_ids()}")
+        except Exception as e:
+            print(f"⚠️ [LLMEngine] Failed to init NPCPromptLoader in __init__: {e}")
             self.loader = None
-        else:
-            try:
-                from app.agents.npc_pipeline import NPCPromptLoader
-                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-                char_json_path = os.path.join(base_dir, "data", "characters.json")
-                prompt_json_path = os.path.join(base_dir, "data", "NPC_prompt.json")
-                self.loader = NPCPromptLoader(prompt_json_path, char_json_path)
-                print(f"[LLMEngine] Global NPCPromptLoader initialized. Available NPCs: {self.loader.get_all_npc_ids()}")
-            except Exception as e:
-                print(f"⚠️ [LLMEngine] Failed to init NPCPromptLoader in __init__: {e}")
-                self.loader = None
         
         print("[LLMEngine] Initialized with pipeline architecture")
 
@@ -130,33 +126,6 @@ class LLMEngine:
                 "state": Dict
             }
         """
-        # ── Mock 모드: 모델 호출 없이 Mock 응답 반환 ──
-        if settings.MOCK_MODE:
-            import random
-            mock_responses = [
-                "음... 그건 좀 더 조사해봐야 할 것 같은데요.",
-                "아, 그걸 아시는군요. 사실 저도 좀 의심하고 있었어요.",
-                "그런 이야기가 있나요? 저는 잘 모르겠는데...",
-                "솔직히 말씀드리면, 최근에 이상한 일이 좀 있었어요.",
-                "아마 그건 교단과 관련이 있을 수도 있어요.",
-                "저도 비슷한 걸 들은 적이 있어요. 조심하세요.",
-                "흥미로운 이야기네요. 제가 아는 건 여기까지예요.",
-                "그 장소에 대해서는 말씀드리기 어렵지만... 힌트를 드리자면...",
-            ]
-            friendly_d = random.randint(-1, 2)
-            faith_d = random.randint(-1, 1)
-            result = {
-                "response": random.choice(mock_responses),
-                "analysis": {
-                    "reason_tags": ["정보제공"],
-                    "friendly_delta": friendly_d,
-                    "faith_delta": faith_d
-                },
-                "state": {"friendly": 50 + friendly_d, "faith": 50 + faith_d}
-            }
-            self._append_to_session(npc_id, message, result["response"], result["analysis"])
-            return result
-
         # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
         if settings.USE_GPU_PROXY:
             from app.core.gpu_proxy import gpu_proxy

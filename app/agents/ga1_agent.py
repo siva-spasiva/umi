@@ -9,13 +9,6 @@ from app.core.config import settings
 class GA1Agent:
     """GA1: 유저 입력의 안전성 및 비속어 검증 (가드레일 1단계)"""
     def __init__(self):
-        # Mock 모드: 모델 없이 즉시 통과
-        if settings.MOCK_MODE:
-            print("[GA1] Mock mode — skipping model loading")
-            self.model = None
-            self.tokenizer = None
-            return
-
         # GPU Proxy 모드: 모델 로드 건너뛰기
         if settings.USE_GPU_PROXY:
             print("[GA1] GPU Proxy mode — skipping local model loading")
@@ -62,10 +55,6 @@ class GA1Agent:
 
     async def check_safety(self, message: str) -> Tuple[bool, Optional[str]]:
         """유저의 입력이 안전한지 검사합니다."""
-        # Mock 모드: 항상 안전
-        if settings.MOCK_MODE:
-            return True, None
-
         # GPU Proxy 모드: AWS EC2 GPU 서버에 위임
         if settings.USE_GPU_PROXY:
             from app.core.gpu_proxy import gpu_proxy
