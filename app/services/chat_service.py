@@ -368,7 +368,10 @@ class ChatService(BaseService):
             diaries.append({
                 "day": s.get("day_index"),
                 "title": diary_data.get("title"),
-                "text": diary_data.get("text")
+                "text": diary_data.get("text"),
+                "items_used_or_acquired": s.get("items", []),
+                "key_conversations": s.get("key_conversations", []),
+                "clues_found": s.get("clues", [])
             })
 
         if not diaries:

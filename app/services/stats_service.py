@@ -114,7 +114,7 @@ class StatsService(BaseService):
 
         await self.insert_initial_npc_stats(user_id)
 
-        initial_items = {f"{i:03d}": (i <= 3) for i in range(1, 100)}
+        initial_items = {f"item{i:03d}": (i <= 3) for i in range(1, 100)}
         await self.db["inventories"].insert_one({
             "user_id": user_id,
             "items": initial_items,

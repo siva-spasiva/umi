@@ -43,6 +43,20 @@ async def startup_init_npcs():
         else:
             print(f"⚠️ [Startup] map.json not found at {map_path}")
             
+        story_prompt_path = os.path.join(os.path.dirname(__file__), "data", "story_prompt.json")
+        if os.path.exists(story_prompt_path):
+            with open(story_prompt_path, "r", encoding="utf-8") as f:
+                story_prompt_data = json.load(f)
+            await db["agent_prompts"].update_one(
+                {"_id": "story_agent"},
+                {"$set": story_prompt_data},
+                upsert=True
+            )
+            print(f"✅ [Startup] Successfully synced story_prompt.json to 'agent_prompts' collection.")
+        else:
+            print(f"⚠️ [Startup] story_prompt.json not found at {story_prompt_path}")
+            
+            
     except Exception as e:
         print(f"⚠️ [Startup] Init failed: {e}")
 

@@ -1,4 +1,5 @@
 import os
+import re
 import torch
 import httpx
 import json
@@ -192,17 +193,31 @@ class StoryAgent:
         except Exception:
             return "일기 생성 실패"
 
-    async def _get_system_prompt(self) -> str:
+    async def _get_system_prompt(self, mode: str = "DIARY") -> str:
         """MongoDB에서 스토리 에이전트 전용 시스템 프롬프트를 가져옵니다."""
         from app.core.database import db
         doc = await db["agent_prompts"].find_one({"_id": "story_agent"})
-        if doc and "system" in doc:
-            return doc["system"]
         
-        # Fallback (DB에 없는 경우 기존 코드 기반 프롬프트)
+        if doc and "system" in doc:
+            prompts = doc["system"]
+            if isinstance(prompts, dict):
+                if mode == "DIARY":
+                    prompt = prompts.get("diary", "")
+                else:
+                    prompt = prompts.get("epilogue", "")
+                if prompt:
+                    return prompt
+        
+        # Fallback
+        if mode == "DIARY":
+            return (
+                "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
+                "Your role is record keeping and story synthesis.\n"
+                "Output JSON ONLY."
+            )
         return (
             "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
-            "Your role is record keeping only.\n"
+            "Your role is retrospective record writing only.\n"
             "Output JSON ONLY."
         )
 
@@ -236,29 +251,32 @@ class StoryAgent:
             raise ValueError("empty response")
 
         raw = text.strip()
+        
+        # If the LLM started generating inside the forced "{", add it back
+        # or if the LLM hallucinated markdown, remove it.
+        raw = re.sub(r"^```json\s*", "", raw, flags=re.IGNORECASE)
+        raw = re.sub(r"```\s*$", "", raw)
+        
+        if not raw.startswith("{"):
+            if '"ending_type"' in raw: # Guess it's an epilogue that skipped prefix
+                raw = '{\n  "title": "기록 정리",\n  "text": "' + raw
+            else:
+                raw = "{\n" + raw
+            
+        # Gemma JSON hallucination fixes
+        # 1. Provide missing trailing brace if cut off but reasonably near the end
+        if raw.count("{") > raw.count("}"):
+            raw += "\n}"
+            
+        # 2. Fix trailing commas before close braces
+        raw = re.sub(r",\s*}", "}", raw)
 
         candidates = []
 
-        # 1) 코드블록 우선 시도
-        if "```json" in raw:
-            try:
-                block = raw.split("```json", 1)[1].split("```", 1)[0].strip()
-                if block:
-                    candidates.append(block)
-            except Exception:
-                pass
-        if "```" in raw:
-            try:
-                block = raw.split("```", 1)[1].split("```", 1)[0].strip()
-                if block:
-                    candidates.append(block)
-            except Exception:
-                pass
-
-        # 2) 전체 본문 후보
+        # 1) 전체 본문 후보
         candidates.append(raw)
 
-        # 3) 첫 { ~ 마지막 } 범위 후보
+        # 2) 첫 { ~ 마지막 } 범위 후보
         first = raw.find("{")
         last = raw.rfind("}")
         if first != -1 and last != -1 and first < last:
@@ -370,13 +388,29 @@ class StoryAgent:
         # 1. 시스템 프롬프트 가져오기
         from app.core.database import db
         doc = await db["agent_prompts"].find_one({"_id": "story_agent"})
-        base_system = (
-            "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
-            "Your role is record keeping and story synthesis.\n"
-            "Summarize events into a SINGLE JSON object. No explanations or markdown."
-        )
+        
+        base_system = ""
         if doc and "system" in doc:
-            base_system = doc["system"]
+            prompts = doc["system"]
+            if isinstance(prompts, dict):
+                if mode == "DIARY":
+                    base_system = prompts.get("diary", "")
+                else:
+                    base_system = prompts.get("epilogue", "")
+        
+        if not base_system:
+            if mode == "DIARY":
+                base_system = (
+                    "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
+                    "Your role is record keeping and story synthesis.\n"
+                    "Summarize events into a SINGLE JSON object. No explanations or markdown."
+                )
+            else:
+                base_system = (
+                    "You are the Story Agent for the infiltration investigation game \"Project: UMI\".\n"
+                    "Your role is retrospective record writing only.\n"
+                    "Output JSON ONLY."
+                )
         
         # 2. 모드별 스키마 강조
         schema_hint = ""
@@ -406,6 +440,9 @@ class StoryAgent:
                 full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
         else:
             full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
+
+        # Force JSON bracket start to prevent Gemma from writing raw text first
+        full_prompt += "{\n"
 
         # JSON 생성을 위해 온도를 낮춤 (0.1)
         response_text = await self.generate(full_prompt, max_new_tokens=2048, temperature=0.1, top_p=0.95)

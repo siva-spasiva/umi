@@ -405,6 +405,15 @@ def sanitize_npc_response(text: str) -> str:
         if stop_word in text:
             text = text.split(stop_word)[0]
             
+    # Cut off text if variations of <end_of_turn> or <..._speech_end> appear
+    stop_match = re.search(r"\\?<end_of.*?turn\\?>", text, flags=re.IGNORECASE)
+    if stop_match:
+        text = text[:stop_match.start()]
+        
+    speech_end_match = re.search(r"\\?<[^>]+_speech_end\\?>", text, flags=re.IGNORECASE)
+    if speech_end_match:
+        text = text[:speech_end_match.start()]
+            
     # Remove Leaked Control Signals (e.g., (DEFLECT/GASLIGHT))
     text = re.sub(r"\([A-Z_]+(?:/[A-Z_]+)*\)", "", text)
 
@@ -421,6 +430,9 @@ def sanitize_npc_response(text: str) -> str:
     
     # Remove Tags
     text = re.sub(r"\[(NPC|Player|User|System|Model|CheongGalchi)\]", "", text, flags=re.IGNORECASE)
+    
+    # Remove action tags like <-galchi는 조심스럽게 대답하며...>
+    text = re.sub(r"<-[^>]+>\s*", "", text)
     
     # 선택지 패턴 제거
     text = re.sub(r"^\d+\.\s+.*$", "", text, flags=re.MULTILINE)

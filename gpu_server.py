@@ -39,6 +39,8 @@ class NPCResponse(BaseModel):
 class StoryRequest(BaseModel):
     prompt: str
     max_new_tokens: int = 256
+    temperature: Optional[float] = 0.7
+    top_p: Optional[float] = 0.9
 
 class StoryDiaryRequest(BaseModel):
     messages: str
@@ -452,12 +454,15 @@ async def infer_story(req: StoryRequest):
         inputs = model_mgr.story_tokenizer(req.prompt, return_tensors="pt").to(model_mgr.story_model.device)
 
         with torch.no_grad():
+            temp = getattr(req, "temperature", 0.7)
+            top_p = getattr(req, "top_p", 0.9)
+            
             outputs = model_mgr.story_model.generate(
                 **inputs,
-                max_new_tokens=req.max_new_tokens,
-                temperature=0.7,
-                top_p=0.9,
-                do_sample=True,
+                max_new_tokens=getattr(req, "max_new_tokens", 400),
+                temperature=temp if temp > 0.0 else 1.0,
+                top_p=top_p,
+                do_sample=True if temp > 0.0 else False,
                 repetition_penalty=1.05,
                 eos_token_id=model_mgr.story_tokenizer.eos_token_id,
                 pad_token_id=model_mgr.story_tokenizer.eos_token_id
