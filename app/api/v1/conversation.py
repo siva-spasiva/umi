@@ -13,20 +13,22 @@ from app.schemas.conversation import (
 from app.services.conversation_service import conversation_service
 from app.core.security import get_current_user_id
 from app.services.stats_service import stats_service
+from app.services.schedule_service import schedule_service
+from app.core.database import db
 
 router = APIRouter()
 
 
-from typing import List, Union
+from typing import List
 
 @router.post(
     "/conversation/start",
     response_model=List[ConversationResponse],
-    summary="NPC 자동 대화 시작 (스케줄 or 수동)",
+    summary="NPC 자동 대화 시작 (room_id 기반 엿듣기)",
     description=(
         "NPC들이 자동으로 대화합니다.\n"
-        "- **수동 모드**: npc_ids, topic 지정 (단일 대화)\n"
-        "- **스케줄 모드**: day_index, session 지정 (스케줄 기반 다중 대화)\n"
+        "- room_id를 지정하면 토큰 기반 현재 day/session을 조회해\n"
+        "  해당 방의 NPC 배치/토픽으로 엿듣기 대화를 생성합니다.\n"
         "반환값은 항상 대화 목록(List)입니다."
     )
 )
@@ -36,36 +38,49 @@ async def start_conversation(
 ):
     """
     NPC 자동 대화 시작
-    
-    [입력 파라미터]
-    1. 스케줄 모드:
-        - day_index: 1~7
-        - session: morning, afternoon, evening
-    2. 수동 모드:
-        - topic: 주제
-        - npc_ids: NPC ID 목록
     """
     try:
-        # HP 소모 (10)
-        hp_result = await stats_service.spend_hp(user_id, 10, "NPC 자동 대화")
-        if not hp_result["success"]:
-            raise HTTPException(status_code=400, detail=hp_result["message"])
+        if not request.room_id:
+            raise HTTPException(status_code=400, detail="room_id는 필수입니다.")
 
-        # 스케줄 모드
-        if request.day_index is not None and request.session is not None:
-            results = await conversation_service.trigger_scheduled_conversations(
-                day_index=request.day_index,
-                session=request.session
+        current_stats = await stats_service.get_current_stats(user_id)
+        day_index = int(current_stats.get("current_day", 0))
+        session_index = int(current_stats.get("current_session_index", 1))
+        target_room_id = request.room_id.strip().lower()
+
+        session_state = await db["session_map_state"].find_one(
+            {"day_index": day_index, "session_index": session_index},
+            {"_id": 0}
+        )
+        if not session_state:
+            session_state = await schedule_service.generate_map_config(day_index, session_index)
+            await db["session_map_state"].update_one(
+                {"day_index": day_index, "session_index": session_index},
+                {"$set": session_state},
+                upsert=True
             )
-            return results
-        
-        # 수동 모드 (기존 로직)
-        if not request.topic or not request.npc_ids:
-            raise HTTPException(status_code=400, detail="수동 모드에서는 topic과 npc_ids가 필수입니다.")
-            
+
+        room_placement = None
+        for placement in session_state.get("room_placements", []):
+            placement_room_id = str(placement.get("room_id", "")).strip().lower()
+            if placement_room_id == target_room_id:
+                room_placement = placement
+                break
+
+        if not room_placement:
+            raise HTTPException(status_code=404, detail=f"현재 세션에서 room_id={target_room_id} 배치를 찾을 수 없습니다.")
+
+        npcs = room_placement.get("npcs", [])
+        topic_data = room_placement.get("topic")
+        if len(npcs) < 2:
+            raise HTTPException(status_code=400, detail="해당 방은 현재 엿듣기 가능한 NPC 조합(2인 이상)이 아닙니다.")
+        if not topic_data:
+            raise HTTPException(status_code=400, detail="해당 방의 대화 주제가 아직 생성되지 않았습니다.")
+
+        topic_text = f"{topic_data.get('title', '')}: {topic_data.get('context', '')}"
         result = await conversation_service.start_auto_conversation(
-            topic=request.topic,
-            npc_ids=request.npc_ids,
+            topic=topic_text,
+            npc_ids=npcs,
             num_turns=request.num_turns,
         )
         return [result]

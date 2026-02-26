@@ -6,6 +6,8 @@ NPC 대화(Conversation) 서비스
 
 from typing import List, Dict, Any, Optional
 import re
+import os
+import json
 from app.agents.llm_engine import llm_engine
 from app.schemas.conversation import (
     ConversationTurn,
@@ -57,8 +59,11 @@ class ConversationService:
         # 2) 이전 턴들 추가
         if previous_turns:
             for turn in previous_turns:
+                speaker_id = turn.get("speaker_id", turn.get("speaker", "unknown"))
+                if speaker_id not in {"user", "system"}:
+                    speaker_id = self._normalize_npc_id(str(speaker_id))
                 history.append({
-                    "speaker": turn.get("speaker_id", turn.get("speaker", "unknown")),
+                    "speaker": speaker_id,
                     "content": turn.get("content", "")
                 })
 
@@ -66,7 +71,59 @@ class ConversationService:
 
     def __init__(self):
         self.topics_data = {}
+        self.npc_alias_map: Dict[str, str] = {}
+        self._load_npc_alias_map()
         self._load_topics()
+
+    def _load_npc_alias_map(self):
+        """characters.json 기반 NPC alias -> canonical id 매핑 로드"""
+        try:
+            base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+            characters_path = os.path.join(base_dir, "data", "characters.json")
+            if not os.path.exists(characters_path):
+                return
+
+            with open(characters_path, "r", encoding="utf-8") as f:
+                characters = json.load(f)
+
+            alias_map: Dict[str, str] = {}
+            for key, info in characters.items():
+                canonical = str(info.get("id") or key).strip().lower()
+                candidates = {
+                    str(key).strip().lower(),
+                    canonical,
+                    str(info.get("name") or "").strip().lower(),
+                    str(info.get("name") or "").replace(" ", "").strip().lower(),
+                }
+                for cand in candidates:
+                    if cand:
+                        alias_map[cand] = canonical
+
+            self.npc_alias_map = alias_map
+        except Exception as e:
+            print(f"⚠️ [Conversation] Failed to load npc alias map: {e}")
+
+    def _normalize_npc_id(self, npc_id: str) -> str:
+        raw = str(npc_id or "").strip()
+        if not raw:
+            return raw
+        lowered = raw.lower()
+        compact = lowered.replace(" ", "")
+        if lowered in self.npc_alias_map:
+            return self.npc_alias_map[lowered]
+        if compact in self.npc_alias_map:
+            return self.npc_alias_map[compact]
+        return lowered
+
+    def _normalize_npc_ids(self, npc_ids: List[str]) -> List[str]:
+        normalized: List[str] = []
+        seen = set()
+        for npc_id in npc_ids or []:
+            canonical = self._normalize_npc_id(npc_id)
+            if canonical and canonical not in seen:
+                normalized.append(canonical)
+                seen.add(canonical)
+        return normalized
 
     def _load_topics(self):
         """data/NPC_topics.json 로드 및 VectorDB 인덱싱"""
@@ -158,6 +215,8 @@ class ConversationService:
         - 대화 중 상태(친밀도/신뢰도)는 변하지 않습니다.
         - Topic이 없으면 VectorDB에서 검색하여 선정합니다.
         """
+        npc_ids = self._normalize_npc_ids(npc_ids)
+
         # 랜덤 주제 선정 (입력된 topic이 'random'이거나 비어있으면)
         if not topic or topic == "random":
             topic = self._get_topic_from_vectordb(query="random")
@@ -257,6 +316,8 @@ class ConversationService:
             user_message: 유저의 발언
             history: 이전 대화 턴들
         """
+        npc_ids = self._normalize_npc_ids(npc_ids)
+
         # 히스토리 구성
         conversation_history = self._build_conversation_history(
             topic, history or []
@@ -362,6 +423,8 @@ class ConversationService:
 
     def _get_npc_korean_name(self, npc_id: str) -> str:
         """NPC ID에서 한국어 이름 조회"""
+        npc_id = self._normalize_npc_id(npc_id)
+
         # LLMEngine의 pipeline에서 korean_name 가져오기
         if npc_id in llm_engine.pipelines:
             return llm_engine.pipelines[npc_id].korean_name
@@ -444,6 +507,7 @@ class ConversationService:
         
         # 그룹별 대화 생성
         for location, npc_ids in location_map.items():
+            npc_ids = self._normalize_npc_ids(npc_ids)
             if len(npc_ids) < 2:
                 continue
                 

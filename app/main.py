@@ -1,5 +1,6 @@
 from app.core.config import settings
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.user import router as user_router
 from app.api.v1.chat import router as chat_router
 from app.api.v1.stats import router as stats_router
@@ -17,6 +18,17 @@ from app.core.logger import setup_daily_rotating_logger
 setup_daily_rotating_logger("api_server", "logs/app.log", capture_uvicorn=True)
 
 app = FastAPI(title="LLM API Server")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")

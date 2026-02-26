@@ -3,6 +3,8 @@ from pydantic import BaseModel, Field
 from app.agents.llm_engine import llm_engine
 from app.core.database import db
 from app.core.security import get_current_user_id
+from app.services.stats_service import stats_service
+from app.services.schedule_service import schedule_service
 
 router = APIRouter()
 
@@ -122,5 +124,76 @@ async def reset_items(user_id: str = Depends(get_current_user_id)):
         return {"status": "success", "message": "아이템이 성공적으로 초기화되었습니다."}
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/debug/current_npc_locations")
+async def get_current_npc_locations(user_id: str = Depends(get_current_user_id)):
+    """
+    [DEBUG] 현재 유저의 day/session 기준 NPC 맵 배치 조회
+    - 파라미터 없이 Authorization 토큰으로 유저 식별
+    - session_map_state가 없으면 schedule 기반으로 즉시 생성 후 반환
+    """
+    try:
+        current_stats = await stats_service.get_current_stats(user_id)
+        day_index = int(current_stats.get("current_day", 0))
+        session_index = int(current_stats.get("current_session_index", 1))
+
+        session_state = await db["session_map_state"].find_one(
+            {"day_index": day_index, "session_index": session_index},
+            {"_id": 0}
+        )
+
+        source = "session_map_state"
+        if not session_state:
+            session_state = await schedule_service.generate_map_config(day_index, session_index)
+            await db["session_map_state"].update_one(
+                {"day_index": day_index, "session_index": session_index},
+                {"$set": session_state},
+                upsert=True
+            )
+            source = "generated_from_schedule"
+
+        room_meta_index: dict[str, dict] = {}
+        floors = await db["maps"].find({}, {"_id": 0, "id": 1, "rooms.id": 1, "rooms.name": 1}).to_list(length=200)
+        for floor in floors:
+            floor_id = floor.get("id")
+            for room in floor.get("rooms", []):
+                room_id = str(room.get("id", "")).strip().lower()
+                if room_id:
+                    room_meta_index[room_id] = {
+                        "floor_id": floor_id,
+                        "room_name": room.get("name")
+                    }
+
+        placements = []
+        for placement in session_state.get("room_placements", []):
+            room_id = str(placement.get("room_id", "")).strip().lower()
+            meta = room_meta_index.get(room_id, {})
+            placements.append({
+                "room_id": room_id,
+                "room_name": meta.get("room_name"),
+                "floor_id": meta.get("floor_id"),
+                "npcs": placement.get("npcs", []),
+                "npc_count": len(placement.get("npcs", [])),
+                "topic": placement.get("topic"),
+            })
+
+        return {
+            "status": "success",
+            "data": {
+                "user_id": user_id,
+                "day_index": day_index,
+                "session_index": session_index,
+                "session_name": session_state.get("session_name"),
+                "source": source,
+                "user_location": {
+                    "floor_id": current_stats.get("floor_id"),
+                    "room_id": current_stats.get("room_id"),
+                },
+                "room_placements": placements,
+            }
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
