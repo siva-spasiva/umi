@@ -41,3 +41,17 @@ class ConversationResponse(BaseModel):
         default_factory=dict,
         description="NPC별 현재 상태 {npc_id: {friendly, faith, ...}}"
     )
+    
+    # 개별 NPC의 스탯 변화량 및 현재 스탯
+    updatedStats: Optional[Dict[str, Dict[str, int]]] = Field(
+        default_factory=dict,
+        description="NPC별 이번 턴 스탯 변화량 {npc_id: {friendly, faith}}"
+    )
+    currentStats: Optional[Dict[str, Dict[str, int]]] = Field(
+        default_factory=dict,
+        description="NPC별 현재 스탯 {npc_id: {friendly, faith, fishLevel}}"
+    )
+    blocked: bool = Field(default=False)
+    status: str = Field(default="success")
+    troll_count: int = Field(default=0)
+    force_skip: bool = Field(default=False)

@@ -279,6 +279,8 @@ class ConversationService:
         )
         turns.append(user_turn)
 
+        npc_updated_stats: Dict[str, Dict[str, int]] = {}
+        
         # 각 NPC가 순서대로 응답
         for npc_id in npc_ids:
             result = await llm_engine.ask(
@@ -290,6 +292,12 @@ class ConversationService:
             npc_response = result.get("response", "")
             analysis = result.get("analysis", {})
             state = result.get("state", {})
+            
+            # 개별 스탯 변화량 수집
+            npc_updated_stats[npc_id] = {
+                "friendly": analysis.get("friendly_delta", 0),
+                "faith": analysis.get("faith_delta", 0)
+            }
             
             # 타입 에러 방지 (state가 리스트로 오는 경우 처리)
             if isinstance(state, list):
@@ -318,10 +326,37 @@ class ConversationService:
 
             print(f"[Conversation] {korean_name}({npc_id}) 응답 완료")
 
+        npc_states = self._resolve_npc_states(npc_ids, turns, collected_states)
+        
+        # currentStats 계산 (각 NPC별로 최신 상태에 delta를 합산하여 반환)
+        npc_current_stats: Dict[str, Dict[str, int]] = {}
+        
+        for npc_id in npc_ids:
+            # 1) 파이프라인/수집된 현재 Base 상태 값 가져오기
+            f_base = npc_states.get(npc_id, {}).get("friendly", 50)
+            fa_base = npc_states.get(npc_id, {}).get("faith", 50)
+            fl_base = npc_states.get(npc_id, {}).get("fish_level", 0)
+            
+            # 2) 변화량 더하기
+            f_delta = npc_updated_stats.get(npc_id, {}).get("friendly", 0)
+            fa_delta = npc_updated_stats.get(npc_id, {}).get("faith", 0)
+            
+            npc_current_stats[npc_id] = {
+                "friendly": f_base + f_delta,
+                "faith": fa_base + fa_delta,
+                "fishLevel": fl_base
+            }
+
         return ConversationResponse(
             topic=topic,
             turns=turns,
-            npc_states=self._resolve_npc_states(npc_ids, turns, collected_states)
+            npc_states=npc_states,
+            updatedStats=npc_updated_stats,
+            currentStats=npc_current_stats,
+            blocked=False, # 향후 Guardrail 연동 시 업데이트 필요
+            status="success",
+            troll_count=0,
+            force_skip=False
         )
 
     def _get_npc_korean_name(self, npc_id: str) -> str:

@@ -7,11 +7,11 @@ from app.core.security import create_access_token
 async def test_npc_to_npc_conversation():
     # 1. 테스트용 인증 토큰 생성
     test_user_id = "test_user_001"
-    access_token = create_access_token(data={"sub": test_user_id, "role": "user"})
+    access_token = create_access_token(test_user_id)
     headers = {"Authorization": f"Bearer {access_token}"}
 
-    async with AsyncClient(app=app, base_url="http://test") as client:
-        # =====================================================================
+    from httpx import ASGITransport
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         # [방법 1] /api/v1/conversation/start 를 이용한 NPC 자동 대화 (추천)
         # =====================================================================
         print("=== [방법 1] /api/v1/conversation/start (NPC 끼리 알아서 대화) ===")
@@ -66,6 +66,8 @@ async def test_npc_to_npc_conversation():
             data = response.json()
             for turn in data["turns"]:
                 print(f"{turn['speaker']}: {turn['content']}")
+            print("\n--- Response Payload ---")
+            print(json.dumps(data, indent=2, ensure_ascii=False))
         else:
             print("Reply API Error:", response.text)
 
