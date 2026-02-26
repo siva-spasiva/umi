@@ -183,6 +183,18 @@ async def end_session(user_id: str = Depends(get_current_user_id)):
 
     # Day 0 (튜토리얼): 게임 로직 없이 세션만 전환
     if day_index == 0:
+        # 요구사항: Day 0 / Session 0(튜토리얼 시작 상태)에서 end-session 호출 시
+        # 즉시 튜토리얼 종료 후 Day 1 시작
+        if session_index in (0, 1):
+            advance_result = await stats_service.complete_tutorial(user_id)
+            return {
+                "status": "tutorial_completed",
+                "message": "튜토리얼이 종료되고 Day 1이 시작되었습니다.",
+                "day_index": day_index,
+                "session_index": session_index,
+                "advance": advance_result,
+            }
+
         advance_result = await stats_service.advance_session(user_id)
         return {
             "status": "tutorial",

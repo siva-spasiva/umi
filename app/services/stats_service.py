@@ -333,5 +333,33 @@ class StatsService(BaseService):
             "message": msg,
         }
 
+    async def complete_tutorial(self, user_id: str) -> Dict[str, Any]:
+        """
+        튜토리얼(Day 0)을 즉시 종료하고 Day 1 morning으로 전환.
+        """
+        stats = await self.get_current_stats(user_id)
+        previous_session = stats.get("current_session", "morning") if stats else "morning"
+
+        await self.update_stats({
+            "current_day": 1,
+            "current_session": "morning",
+            "total_hp": 100,
+            "session_hp": SESSION_HP_MAP["morning"],
+            "plus_hp": 0,
+        }, user_id)
+
+        return {
+            "success": True,
+            "previous_session": previous_session,
+            "current_session": "morning",
+            "previous_session_index": self._session_to_index(previous_session),
+            "current_session_index": 1,
+            "total_hp": 100,
+            "session_hp": SESSION_HP_MAP["morning"],
+            "plus_hp": 0,
+            "current_day": 1,
+            "message": "튜토리얼이 종료되었습니다. Day 1이 시작됩니다."
+        }
+
 
 stats_service = StatsService()
