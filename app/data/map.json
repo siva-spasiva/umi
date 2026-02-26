@@ -1637,6 +1637,18 @@
                         "label": "B5 stair",
                         "message": "끝이 보이지 않는 계단.",
                         "itemId": ""
+                    },
+                    {
+                        "id": "zone_4",
+                        "type": "move",
+                        "target": "b4_entrance",
+                        "x": 15.8,
+                        "y": 79.7,
+                        "width": 7.1,
+                        "height": 12,
+                        "label": "지하4층으로 올라가는 계단",
+                        "message": "지하4층으로 올라간다.",
+                        "itemId": "item017"
                     }
                 ],
                 "background": "B5_stair01.png"
