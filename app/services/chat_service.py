@@ -35,6 +35,26 @@ class ChatService(BaseService):
         if value.lower() in {"null", "none", "string"}:
             return None
         return value
+
+    async def _get_user_fish_level(self, user_id: str) -> int:
+        """
+        유저 fish level을 여러 저장소/키에서 안전하게 조회.
+        우선순위: user_stats.fishLevel -> user_states.fish_level -> user_states.fishLevel
+        """
+        stats_doc = await self.db["user_stats"].find_one({"user_id": user_id}, {"_id": 0, "fishLevel": 1})
+        if stats_doc and isinstance(stats_doc.get("fishLevel"), int):
+            return stats_doc["fishLevel"]
+
+        state_doc = await self.db["user_states"].find_one(
+            {"user_id": user_id},
+            {"_id": 0, "fish_level": 1, "fishLevel": 1}
+        )
+        if state_doc:
+            if isinstance(state_doc.get("fish_level"), int):
+                return state_doc["fish_level"]
+            if isinstance(state_doc.get("fishLevel"), int):
+                return state_doc["fishLevel"]
+        return 0
     
     @traceable(run_type="chain", name="Chat_Flow_Pipeline")
     async def process_chat_flow(self, user_id: str, npc_id: str, message: str, item_id: str = None):
@@ -109,8 +129,7 @@ class ChatService(BaseService):
         npc_fish_level = npc_state.get("fish_level", 0)
         
         # 2. User Fish Level 확인 (DB 조회)
-        user_state = await self.db["user_states"].find_one({"user_id": user_id})
-        user_fish_level = user_state.get("fish_level", 0) if user_state else 0
+        user_fish_level = await self._get_user_fish_level(user_id)
         
         # 3. 마스킹 로직 적용
         # 조건: NPC와 유저의 생선화 레벨 차이에 따른 차등 마스킹

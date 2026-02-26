@@ -188,7 +188,8 @@ class NPCPromptLoader:
                     stats = info.get("initialStats", info.get("stats", {}))
                     self._character_stats[key.lower()] = NPCState(
                         friendly=stats.get("friendly", 50),
-                        faith=stats.get("faith", 50)
+                        faith=stats.get("faith", 50),
+                        fish_level=stats.get("fishLevel", stats.get("fish_level", 0))
                     )
                     
                 print(f"[NPCPromptLoader] Loaded metadata for {len(char_data)} characters.")

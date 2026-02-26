@@ -10,7 +10,7 @@ from app.core.security import get_current_user_id
 from app.core.database import db
 from app.services.stats_service import stats_service
 
-from typing import Optional
+from typing import Optional, Dict, Any, List
 
 router = APIRouter()
 
@@ -106,6 +106,15 @@ async def create_story_summary(summary: StorySummary):
 class DiaryGenerationRequest(BaseModel):
     day_index: Optional[int] = None
 
+class EndSessionResponse(BaseModel):
+    status: str
+    message: Optional[str] = None
+    day_index: int
+    session_index: int
+    summaries: Optional[Dict[str, str]] = None
+    next_session_map: Optional[Dict[str, Any]] = None
+    advance: Dict[str, Any]
+
 @router.post("/diary", status_code=status.HTTP_201_CREATED,
              summary="일기 생성 (서버 측 자동 분석)",
              description="서버에 저장된 대화 로그를 기반으로 LLM이 하루를 분석하여 일기(StorySummary)를 생성하고 저장합니다."
@@ -156,52 +165,50 @@ async def get_diary(day_index: int, user_id: str = Depends(get_current_user_id))
         raise HTTPException(status_code=404, detail="해당 일차의 일기 정보가 없습니다.")
     return diary
 
-class EndSessionRequest(BaseModel):
-    """세션 종료 요청"""
-    day_index: int
-    session_index: int = Field(..., ge=1, le=4)
-
-
 @router.post("/end-session",
+             response_model=EndSessionResponse,
              summary="세션 종료 — 대화 내용 저장",
-             description="NPC와의 대화 세션을 종료합니다. 대화를 요약하여 장기 기억(Vector DB)에 저장하고 버퍼를 비웁니다. 다음 세션(또는 다음 날)으로 넘어가기 전에 호출합니다."
+             description="NPC와의 대화 세션을 종료합니다. day/session은 body로 받지 않고, 현재 유저의 DB 상태(user_stats)에서 자동으로 계산합니다."
              )
-async def end_session(request: EndSessionRequest, user_id: str = Depends(get_current_user_id)):
+async def end_session(user_id: str = Depends(get_current_user_id)):
     """
     대화 세션 종료:
     - Day 0 (튜토리얼): 실제 로직 없이 day/session만 전환
     - Day 1+: 대화 요약 → 장기 기억 저장 → 다음 세션 맵 생성
-    - day_index : 실제 존재하는 게임 내 일차( 1-5)
-    - session_index : 일차 내 세션 인덱스 (1-4)
+    - day/session 인덱스는 user_stats의 current_day/current_session에서 자동 조회
     """
+    current_stats = await stats_service.get_current_stats(user_id)
+    day_index = current_stats.get("current_day", 0)
+    session_index = current_stats.get("current_session_index", 1)
+
     # Day 0 (튜토리얼): 게임 로직 없이 세션만 전환
-    if request.day_index == 0:
+    if day_index == 0:
         advance_result = await stats_service.advance_session(user_id)
         return {
             "status": "tutorial",
             "message": "튜토리얼 세션입니다. 게임 데이터는 저장되지 않습니다.",
-            "day_index": request.day_index,
-            "session_index": request.session_index,
+            "day_index": day_index,
+            "session_index": session_index,
             "advance": advance_result,
         }
 
-    if request.day_index > 5:
+    if day_index > 5:
         raise HTTPException(status_code=400, detail="day_index는 최대 5일까지만 가능합니다.")
         
-    if request.session_index > 4:
+    if session_index > 4:
         raise HTTPException(status_code=400, detail="session_index는 최대 4(하루 4세션)까지만 가능합니다.")
         
-    if request.session_index == 4:
+    if session_index == 4:
         # TODO: 하루의 마지막(4번째) 세션이 종료되었습니다. 다음 날(day)로 넘어가는 처리/초기화 로직을 여기에 작성해야 합니다.
         pass
 
     try:
-        summaries = await llm_engine.save_session_summary(request.day_index, None, user_id)
+        summaries = await llm_engine.save_session_summary(day_index, None, user_id)
         
         # [NEW] 다음 세션 계산 및 맵(NPC 위치 및 주제) 설정
         from app.services.schedule_service import schedule_service
         from app.core.database import db
-        next_day, next_session = schedule_service.get_next_session_info(request.day_index, request.session_index)
+        next_day, next_session = schedule_service.get_next_session_info(day_index, session_index)
         next_map_config = await schedule_service.generate_map_config(next_day, next_session)
         
         # [NEW] 다음 세션 맵 상태를 MongoDB에 저장 (room API에서 읽어감)
@@ -232,16 +239,16 @@ async def end_session(request: EndSessionRequest, user_id: str = Depends(get_cur
             return {
                 "status": "skipped",
                 "message": "대화 내역이 없어 요약을 생략했습니다.",
-                "day_index": request.day_index,
-                "session_index": request.session_index,
+                "day_index": day_index,
+                "session_index": session_index,
                 "next_session_map": next_map_config,
                 "advance": advance_result,
             }
         
         return {
             "status": "success",
-            "day_index": request.day_index,
-            "session_index": request.session_index,
+            "day_index": day_index,
+            "session_index": session_index,
             "summaries": summaries,
             "next_session_map": next_map_config,
             "advance": advance_result,
