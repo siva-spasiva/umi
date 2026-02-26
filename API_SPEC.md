@@ -2,6 +2,48 @@
 
 기준: `app/api/v1` 실제 코드 기준 정리 (2026-02-26)
 
+## 0) 로컬 실행
+
+### 사전 요구사항
+
+- Docker Desktop 실행 중
+
+### 실행
+
+```bash
+bash scripts/bootstrap.sh
+```
+
+내부적으로 다음 순서로 진행된다:
+
+1. `docker compose -f docker-compose.local.yml up -d --build`
+   - `umi-mongo-local` (MongoDB 7): `localhost:27017`
+   - `umi-api-local` (FastAPI + uvicorn): `localhost:8000`
+2. `GET /api/v1/health` 폴링 (2초 간격, 최대 60회) → healthy 확인
+3. ~~`python -m app.data.init_data` 시드 데이터 초기화~~ (모듈 미구현, 스킵)
+
+### 접속
+
+| 대상 | URL |
+| --- | --- |
+| API | <http://localhost:8000> |
+| Swagger 문서 | <http://localhost:8000/docs> |
+
+### 로컬 환경 특이사항
+
+- `MOCK_MODE=true` — GPU/임베딩 모델 호출 없이 Mock 응답
+- `UMI_DISABLE_VECTORDB=true` — ChromaDB 비활성화
+- `USE_GPU_PROXY=false` — GPU 서버 연결 안 함
+- 테스트용 토큰: `magic_token_for_test` (Authorization 헤더에 사용 가능)
+
+### 종료
+
+```bash
+docker compose -f docker-compose.local.yml down
+```
+
+---
+
 ## 1) 기본 정보
 
 - Base URL: `/api/v1`
