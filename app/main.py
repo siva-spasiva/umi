@@ -16,7 +16,17 @@ from app.api.v1.map import router as map_router
 from app.core.logger import setup_daily_rotating_logger
 setup_daily_rotating_logger("api_server", "logs/app.log", capture_uvicorn=True)
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(title="LLM API Server")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], # For local development, allow all origins
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
