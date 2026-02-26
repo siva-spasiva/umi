@@ -98,3 +98,29 @@ async def set_session_hp(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/debug/reset_items")
+async def reset_items(user_id: str = Depends(get_current_user_id)):
+    """
+    [DEBUG] 유저 인벤토리 초기화
+    - 모든 아이템 소유 상태를 해제하고 시초 아이템(001, 002, 003)만 소지하도록 만듭니다.
+    - Authorization 토큰으로 유저 식별
+    """
+    try:
+        inventory = await db["inventories"].find_one({"user_id": user_id})
+        if not inventory:
+            raise HTTPException(status_code=404, detail="인벤토리를 찾을 수 없습니다. /stats/static 등을 먼저 호출하세요.")
+
+        # Dictionary comprehension: set item001~003 to True, others to False
+        reset_items_map = {f"item{str(i).zfill(3)}": (i <= 3) for i in range(1, 100)}
+        
+        await db["inventories"].update_one(
+            {"user_id": user_id},
+            {"$set": {"items": reset_items_map}}
+        )
+
+        return {"status": "success", "message": "아이템이 성공적으로 초기화되었습니다."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
