@@ -21,7 +21,7 @@ class EndDayRequest(BaseModel):
     npc_id: Optional[str] = None
 
 
-@router.post("/chat", summary="NPC와 대화 (가드레일 적용)")
+@router.post("/chat", summary="NPC와 대화 (가드레일 적용)", response_model=ChatResponse)
 async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
     """
     GA 에이전트가 입력과 출력을 검증하는 채팅 API입니다.
@@ -37,12 +37,30 @@ async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current
     if result.get("status") in ["blocked_by_guardrail", "blocked_by_ga1", "blocked_by_troll_limit"]:
         return {
             "response": result["response"],
+            "thought": "System blocked response",
+            "npcId": request.npcId,
             "blocked": True,
             "status": result.get("status"),
             "troll_count": result.get("troll_count", 0),
-            "force_skip": result.get("force_skip", False)
+            "force_skip": result.get("force_skip", False),
+            "updatedStats": {"friendly": 0, "faith": 0},
+            "currentStats": {}
         }
         
+    analysis = result.get("analysis", {})
+    state = result.get("state", {})
+    
+    result["thought"] = analysis.get("thought", "")
+    result["updatedStats"] = {
+        "friendly": analysis.get("friendly_delta", 0),
+        "faith": analysis.get("faith_delta", 0)
+    }
+    result["currentStats"] = {
+        "friendly": state.get("friendly", 0),
+        "faith": state.get("faith", 0),
+        "fishLevel": state.get("fish_level", 0)
+    }
+    
     result["hp"] = hp_result
     return result
 

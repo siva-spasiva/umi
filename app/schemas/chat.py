@@ -57,7 +57,12 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     response: str
-    thought: str
-    npcId: str
-    updatedStats: Dict[str, Any]
-    currentStats: Dict[str, Any]
+    thought: Optional[str] = ""
+    npcId: Optional[str] = ""
+    updatedStats: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    currentStats: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    blocked: Optional[bool] = False
+    status: str
+    troll_count: Optional[int] = 0
+    force_skip: Optional[bool] = False
+    hp: Optional[Dict[str, Any]] = None
