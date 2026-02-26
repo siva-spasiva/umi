@@ -399,30 +399,13 @@ class StoryAgent:
             {"role": "user", "content": user_prompt}
         ]
         
-        full_system = f"{base_system}\n{schema_hint}\n\nStrictly output ONLY the JSON object. Do not include any text before or after the JSON."
-
-        # 3. Input Format 구성
-        input_data = {
-            "mode": mode,
-            "data": data
-        }
-        user_prompt = json.dumps(input_data, ensure_ascii=False, indent=2)
-        
-        chat = [
-            {"role": "system", "content": full_system},
-            {"role": "user", "content": user_prompt}
-        ]
-        
-        # [FIX] GPU 프록시의 첫 몇 글자 잘림 현상을 방지하기 위해 아주 긴 더미 헤더 추가 (sacrificial padding)
-        padding = "PADDING_REPAIR_BUG_IGNORE_THIS_TEXT_AS_IT_IS_SACRIFICIAL_HEADER_FOR_TRUNCATION_FIX_"
-        
         if self.tokenizer:
             try:
-                full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n{padding}{{"
+                full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
             except Exception:
-                full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n{padding}{{"
+                full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
         else:
-            full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n{padding}{{"
+            full_prompt = f"<|im_start|>system\n{full_system}<|im_end|>\n<|im_start|>user\n{user_prompt}<|im_end|>\n<|im_start|>assistant\n"
 
         # JSON 생성을 위해 온도를 낮춤 (0.1)
         response_text = await self.generate(full_prompt, max_new_tokens=2048, temperature=0.1, top_p=0.95)
@@ -435,13 +418,16 @@ class StoryAgent:
 
         # 2차 시도: 출력 복구 전용 프롬프트로 재호출
         try:
-            repair_prompt = (
+            repair_system = (
                 "You must output ONE valid JSON object only.\n"
                 "No markdown, no comments, no explanation.\n"
                 f"Mode: {mode}\n"
                 "If any field is unknown, fill with safe defaults.\n"
-                f"Original input data:\n{user_prompt}\n"
             )
+            repair_user = f"Original input data:\n{user_prompt}\n"
+            
+            repair_prompt = f"<|im_start|>system\n{repair_system}<|im_end|>\n<|im_start|>user\n{repair_user}<|im_end|>\n<|im_start|>assistant\n"
+            
             repaired_text = await self.generate(
                 repair_prompt,
                 max_new_tokens=1200,
