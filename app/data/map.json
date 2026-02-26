@@ -24,31 +24,37 @@
                         "height": 46.2884642370651,
                         "label": "테라스",
                         "message": "테라스로 나간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "item_box_01",
                         "type": "item",
                         "target": "",
-                        "x": 47.63522645630393,
+                        "x": 47.635226456303926,
                         "y": 66.27560441465819,
                         "width": 10,
-                        "height": 10,
+                        "height": 7.007947639083696,
                         "label": "작은 상자",
                         "message": "미술도구 사이, 잡동사니들이 놓여 있다.",
-                        "itemId": "item010"
+                        "itemId": "item010",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "easel",
                         "type": "info",
                         "target": "",
                         "x": 12.797057173798315,
-                        "y": 53.83442941284456,
+                        "y": 53.834429412844564,
                         "width": 10,
                         "height": 10,
                         "label": "이젤",
                         "message": "이젤이 놓여있다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             },
@@ -72,7 +78,9 @@
                         "height": 41.01414203378937,
                         "label": "창고로",
                         "message": "창고 안으로 돌아간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "terrace_to_stairs",
@@ -84,7 +92,9 @@
                         "height": 32.33162094605747,
                         "label": "1층 계단",
                         "message": "계단을 통해 1층으로 내려간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "item_solpi_tear",
@@ -96,7 +106,37 @@
                         "height": 7.19287633278617,
                         "label": "웰컴 드링크",
                         "message": "검푸른 커피인지 뭔지 모를 음료가 있다.",
-                        "itemId": "item005"
+                        "itemId": "item005",
+                        "locked": false,
+                        "locked_key": ""
+                    },
+                    {
+                        "id": "zone_4",
+                        "type": "info",
+                        "target": "",
+                        "x": 38.8,
+                        "y": 61.2,
+                        "width": 6.8,
+                        "height": 9,
+                        "label": "화단",
+                        "message": "작은 화단. 정성스럽게 관리된 듯 하다.",
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
+                    },
+                    {
+                        "id": "zone_5",
+                        "type": "info",
+                        "target": "",
+                        "x": 67.71909618718165,
+                        "y": 5.995656158668083,
+                        "width": 24.81253726146043,
+                        "height": 22.36764176821623,
+                        "label": "하늘",
+                        "message": "풍경이 예쁘다.",
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             }
@@ -128,7 +168,9 @@
                         "height": 31.300865223026996,
                         "label": "건물 입구",
                         "message": "건물 안으로 들어간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "info_ocean_view",
@@ -140,7 +182,9 @@
                         "height": 30,
                         "label": "바닷가 풍경",
                         "message": "아름다운 푸른 바다. 평화롭다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "info_stone_stairs",
@@ -152,7 +196,9 @@
                         "height": 20.55895289659479,
                         "label": "돌계단",
                         "message": "절벽을 따라 깔린 낡은 돌계단. 풍경에 어우러지는 회색 돌이 햇빛에 빛나고 있다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "umi_info",
@@ -164,19 +210,23 @@
                         "height": 13.74988201504177,
                         "label": "간판",
                         "message": "우미 카페의 간판. 멋들어지게 umi 라고 쓰여 있다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_5",
                         "type": "info",
                         "target": "",
-                        "x": 10.5,
-                        "y": 13.8,
-                        "width": 7.9,
-                        "height": 14.8,
+                        "x": 11.061807625636689,
+                        "y": 12.114591968581706,
+                        "width": 24.754228769100727,
+                        "height": 24.912448188509753,
                         "label": "구름",
                         "message": "하늘이 맑고 예쁘다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             },
@@ -188,7 +238,7 @@
                 "highlightColor": "text-blue-300",
                 "description": "잔잔한 재즈 음악이 흐르는, 바닷가가 보이는 깔끔한 인테리어와 곳곳에 놓인 싱그러운 화분들이 돋보인다.",
                 "background": "1F_hall02.png",
-                "overlayColor": "bg-black/5",
+                "overlayColor": "bg-black/0",
                 "activeZones": [
                     {
                         "id": "to_outside",
@@ -200,7 +250,9 @@
                         "height": 24.969036701649273,
                         "label": "외부",
                         "message": "건물 밖으로 나간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "to_umi_class_from_hall",
@@ -212,7 +264,9 @@
                         "height": 18.220440935042824,
                         "label": "원데이 클래스",
                         "message": "원데이 클래스 룸으로 향한다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_3",
@@ -224,7 +278,9 @@
                         "height": 8.3,
                         "label": "우미 간판",
                         "message": "우미 카페의 간판. 멋들어지게 umi 라고 쓰여 있다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_4",
@@ -236,7 +292,9 @@
                         "height": 9,
                         "label": "화로",
                         "message": "따듯해보이는 화로.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_5",
@@ -248,7 +306,9 @@
                         "height": 9.9,
                         "label": "2층 계단",
                         "message": "2층으로 향한다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             },
@@ -260,7 +320,7 @@
                 "highlightColor": "text-blue-400",
                 "description": "아치형 창문으로 바다가 내다보이는 아름다운 강의실. 나무 바닥 위로 햇살이 길게 드리워져 있고, 이젤과 책들이 여기저기 놓여있다.",
                 "background": "1F_class02.png",
-                "overlayColor": "bg-black/5",
+                "overlayColor": "bg-black/0",
                 "activeZones": [
                     {
                         "id": "to_main_hall_from_class",
@@ -272,7 +332,9 @@
                         "height": 12.91713372723111,
                         "label": "메인 홀",
                         "message": "메인 홀로 돌아간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "outside",
@@ -284,22 +346,26 @@
                         "height": 44.4,
                         "label": "외부 테라스.",
                         "message": "공기 좋은 바닷가 테라스.",
-                        "itemId": "item025"
+                        "itemId": "item025",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
-                        "id": "zone_6",
+                        "id": "zone_vase",
                         "type": "item",
                         "target": "",
                         "x": 79.2,
-                        "y": 62.9,
+                        "y": 63.13314778323545,
                         "width": 2.3,
                         "height": 9.1,
                         "label": "꽃병",
                         "message": "투명한 유리병에 담긴 꽃들.",
-                        "itemId": "item025"
+                        "itemId": "item025",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
-                        "id": "zone_4",
+                        "id": "zone_i",
                         "type": "info",
                         "target": "",
                         "x": 51.7,
@@ -308,10 +374,12 @@
                         "height": 11.189442183829467,
                         "label": "비어있는 이젤",
                         "message": "비어있는 이젤. 햇빛을 받아 하얗게 빛난다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
-                        "id": "zone_5",
+                        "id": "zone_s",
                         "type": "info",
                         "target": "",
                         "x": 1.4,
@@ -320,7 +388,9 @@
                         "height": 31.4,
                         "label": "하늘",
                         "message": "탁 트인 유리창의 하늘. 깨끗하고 맑다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             },
@@ -333,26 +403,30 @@
                     {
                         "id": "to_storage",
                         "type": "move",
-                        "target": "storage_main",
+                        "target": "terrace",
                         "x": 43.9,
                         "y": 12.615384615384617,
                         "width": 13.399999999999999,
                         "height": 19.076923076923077,
-                        "label": "2층 창고",
-                        "message": "2층 자재 창고로 올라간다.",
-                        "itemId": ""
+                        "label": "2층 테라스",
+                        "message": "2층으로 올라간다.",
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "to_umi_class",
                         "type": "move",
-                        "target": "umi_class",
+                        "target": "main_hall",
                         "x": 90,
                         "y": 40,
                         "width": 7.720695254723822,
                         "height": 41.10734301882992,
-                        "label": "복도",
-                        "message": "복도로 나간다.",
-                        "itemId": ""
+                        "label": "홀",
+                        "message": "홀로 나간다.",
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_3",
@@ -364,7 +438,9 @@
                         "height": 21.7,
                         "label": "잡동사니",
                         "message": "잔뜩 쌓인 잡동사니. 관리되지 않아 덩굴이 많이 자랐다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             },
@@ -377,14 +453,16 @@
                     {
                         "id": "to_storage",
                         "type": "move",
-                        "target": "storage_main",
+                        "target": "terrace",
                         "x": 43.2,
                         "y": 13.3846153846154,
                         "width": 13.5,
                         "height": 20,
-                        "label": "2층 창고",
-                        "message": "2층 자재 창고로 올라간다.",
-                        "itemId": ""
+                        "label": "2층 테라스",
+                        "message": "2층으로 올라간다.",
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "to_b1",
@@ -396,19 +474,23 @@
                         "height": 32.307692307692335,
                         "label": "지하 1층",
                         "message": "지하 1층으로 내려간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "to_umi_class",
                         "type": "move",
-                        "target": "umi_class",
+                        "target": "main_hall",
                         "x": 90.39999999999999,
                         "y": 44.30769230769231,
                         "width": 8.700000000000003,
                         "height": 46.61538461538461,
-                        "label": "복도",
-                        "message": "복도로 나간다.",
-                        "itemId": ""
+                        "label": "홀",
+                        "message": "홀로 나간다.",
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ],
                 "namePrefix": "1F"
@@ -428,12 +510,14 @@
                 "highlightColor": "text-orange-300",
                 "description": "조금 소란스러운 식당. 신도들이 식사를 하고 있다.",
                 "mapImage": "B1_restaurant01.png",
-                "overlayColor": "bg-black/20",
+                "overlayColor": "bg-black/0",
                 "background": "B1_hall01.png",
                 "activeZones": [
                     {
                         "id": "to_1f",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "stairs_revealed",
                         "x": 8.037548312289703,
                         "y": 38.085631748095494,
@@ -446,6 +530,8 @@
                     {
                         "id": "to_kitchen",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "kitchen",
                         "x": 67.29947168947052,
                         "y": 37.54880674143047,
@@ -458,6 +544,8 @@
                     {
                         "id": "to_b2",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 15.475279586348854,
                         "y": 38.50245864997763,
@@ -514,6 +602,8 @@
                     {
                         "id": "to_cafeteria",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "cafeteria",
                         "x": 86.13372668991056,
                         "y": 20.310370990129798,
@@ -558,6 +648,18 @@
                         "label": "고기",
                         "message": "썰린 고기.",
                         "itemId": "item023"
+                    },
+                    {
+                        "id": "zone_5",
+                        "type": "info",
+                        "target": "",
+                        "x": 3.9,
+                        "y": 16.7,
+                        "width": 10.1,
+                        "height": 13.8,
+                        "label": "소스병",
+                        "message": "정체불명의 요리 소스들.",
+                        "itemId": ""
                     }
                 ],
                 "namePrefix": "B1"
@@ -570,6 +672,8 @@
                     {
                         "id": "zone_1",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "kitchen",
                         "x": 92.33992681529222,
                         "y": 42.27721415097507,
@@ -582,6 +686,8 @@
                     {
                         "id": "zone_2",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "stairs_revealed",
                         "x": 44.49945111469173,
                         "y": 15.586070754875319,
@@ -606,6 +712,8 @@
                     {
                         "id": "zone_4",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 1.272365805168986,
                         "y": 28.495791665677288,
@@ -633,12 +741,14 @@
                 "highlightText": "HALL",
                 "highlightColor": "text-gray-600",
                 "description": "묘한 비린내와 곰팡이 냄새가 진동하는 복도.",
-                "overlayColor": "bg-black/20",
+                "overlayColor": "bg-black/0",
                 "background": "B2_hallway02.png",
                 "activeZones": [
                     {
                         "id": "door_001",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "room001",
                         "x": 5.3998667915147465,
                         "y": 25.067674675328895,
@@ -651,23 +761,22 @@
                     {
                         "id": "door_002",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "room002",
-                        "x": 48.54535234294551,
+                        "x": 48.545352342945506,
                         "y": 40.43962119049319,
                         "width": 5.880239775273445,
                         "height": 24.86412225105301,
                         "label": "002호",
-                        "message": "002호 문을 연다. (굳게 닫혀있다)",
-                        "itemId": "",
-                        "locked": {
-                            "type": "item",
-                            "targetId": "item010",
-                            "message": "굳게 잠겨있다. 무언가 검은 열쇠가 필요해 보인다."
-                        }
+                        "message": "002호 문을 연다.",
+                        "itemId": ""
                     },
                     {
                         "id": "door_laundry",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "laundry_room",
                         "x": 31.739853470666226,
                         "y": 31.486729264078846,
@@ -680,6 +789,8 @@
                     {
                         "id": "door_003",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "item010",
                         "target": "room003",
                         "x": 58.379240711634054,
                         "y": 42.80453603898003,
@@ -692,6 +803,8 @@
                     {
                         "id": "door_004",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "room004",
                         "x": 78.99933395757375,
                         "y": 40.4396211904932,
@@ -704,6 +817,8 @@
                     {
                         "id": "door_005",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "room005",
                         "x": 87.55954709115014,
                         "y": 25.91228712121704,
@@ -716,6 +831,8 @@
                     {
                         "id": "stair_down",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "b3_hall",
                         "x": 67.62720250162639,
                         "y": 49.23729242578694,
@@ -728,6 +845,8 @@
                     {
                         "id": "stair_up",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "B1_machineroom",
                         "x": 72.81778844119177,
                         "y": 42.37818506928924,
@@ -759,7 +878,7 @@
                 "highlightColor": "text-yellow-500",
                 "description": "어둡고 조용한 방. 왠지 모르게 춥다.",
                 "background": "B2_room04.png",
-                "overlayColor": "bg-black/40",
+                "overlayColor": "bg-black/30",
                 "activeZones": [
                     {
                         "id": "zone_bed",
@@ -800,6 +919,8 @@
                     {
                         "id": "zone_door",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 68.09336885559605,
                         "y": 30.61504694805911,
@@ -839,15 +960,16 @@
                 "id": "room002",
                 "name": "002호",
                 "namePrefix": "002호",
-                "highlightText": "LOCKED",
                 "highlightColor": "text-red-500",
-                "description": "항상 잠겨있다. 문틈으로 비린내가 새어 나온다. 살인의 증거가 있을지 모른다.",
+                "description": "문틈으로 비린내가 새어 나온다.",
                 "background": "B2_room03.png",
-                "overlayColor": "bg-black/40",
+                "overlayColor": "bg-black/60",
                 "activeZones": [
                     {
                         "id": "zone_door_002",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 5.6880104803421,
                         "y": 23.3128510583484,
@@ -904,7 +1026,9 @@
                         "height": 64.33263630941613,
                         "label": "복도",
                         "message": "복도로 나간다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_notebook_003",
@@ -916,7 +1040,9 @@
                         "height": 8.516188336216516,
                         "label": "낡은 침대",
                         "message": "아주 낡고 헤진 천이 대충 놓여있다.",
-                        "itemId": ""
+                        "itemId": "",
+                        "locked": false,
+                        "locked_key": ""
                     },
                     {
                         "id": "zone_mug_003",
@@ -928,7 +1054,9 @@
                         "height": 5.0263746088511425,
                         "label": "술병",
                         "message": "뚜껑이 열린 채 말라있다.",
-                        "itemId": "item022"
+                        "itemId": "item022",
+                        "locked": false,
+                        "locked_key": ""
                     }
                 ]
             },
@@ -946,6 +1074,8 @@
                     {
                         "id": "zone_door_004",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 67.36080503178547,
                         "y": 31.837913985493017,
@@ -1031,6 +1161,8 @@
                     {
                         "id": "zone_door_005",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 88.58837917807213,
                         "y": 27.02354314622044,
@@ -1042,7 +1174,7 @@
                     },
                     {
                         "id": "zone_galchi_cards",
-                        "type": "inspect",
+                        "type": "item",
                         "target": "",
                         "x": 4.661519445903706,
                         "y": 60.197490028212876,
@@ -1054,9 +1186,9 @@
                     },
                     {
                         "id": "zone_galchi_phones",
-                        "type": "inspect",
+                        "type": "item",
                         "target": "",
-                        "x": 55.24664808987939,
+                        "x": 55.246648089879386,
                         "y": 64.80640140091448,
                         "width": 4.765948542409717,
                         "height": 6.014398287771186,
@@ -1066,7 +1198,7 @@
                     },
                     {
                         "id": "zone_galchi_receipts",
-                        "type": "inspect",
+                        "type": "item",
                         "target": "",
                         "x": 13.750506880120824,
                         "y": 43.79657554236792,
@@ -1078,7 +1210,7 @@
                     },
                     {
                         "id": "zone_galchi_ledger",
-                        "type": "inspect",
+                        "type": "item",
                         "target": "",
                         "x": 33.680211642289045,
                         "y": 62.66514252359178,
@@ -1087,6 +1219,18 @@
                         "label": "장부 사본",
                         "message": "헌금 흐름을 정리한 장부. 과거 투자사기 장부와 포맷이 똑같다. 범죄 기술의 전이.",
                         "itemId": "npc_galchi_006"
+                    },
+                    {
+                        "id": "zone_6",
+                        "type": "item",
+                        "target": "",
+                        "x": 64.56180762563669,
+                        "y": 54.8,
+                        "width": 3.2,
+                        "height": 7.7,
+                        "label": "",
+                        "message": "",
+                        "itemId": ""
                     }
                 ]
             },
@@ -1099,6 +1243,8 @@
                     {
                         "id": "to_hall",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 66.81961805888606,
                         "y": 48.45775592311131,
@@ -1190,6 +1336,8 @@
                     {
                         "id": "to_b2",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "hallway",
                         "x": 72.8177884411918,
                         "y": 43.272239606616004,
@@ -1202,6 +1350,8 @@
                     {
                         "id": "to_chapel",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "chapel",
                         "x": 31.790303026220464,
                         "y": 32.36477425122932,
@@ -1214,6 +1364,8 @@
                     {
                         "id": "to_truth001",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "truth_room001",
                         "x": 58.18225270836577,
                         "y": 43.62986142154672,
@@ -1230,7 +1382,7 @@
                         "x": 5.278389936429059,
                         "y": 22.708985248100127,
                         "width": 14.078755859967913,
-                        "height": 50.41126508717031,
+                        "height": 50.411265087170314,
                         "label": "학습실 003호",
                         "message": "진리 학습실 003호. 잠겨있다.",
                         "itemId": ""
@@ -1238,6 +1390,8 @@
                     {
                         "id": "zone_9",
                         "type": "move",
+                        "locked": true,
+                        "locked_key": "item010",
                         "target": "b4_entrance",
                         "x": 67.9,
                         "y": 51.9,
@@ -1258,6 +1412,8 @@
                     {
                         "id": "to_hall",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "b3_hall",
                         "x": 23.26130325690862,
                         "y": 29.809752001025686,
@@ -1289,6 +1445,8 @@
                     {
                         "id": "to_hall",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "b3_hall",
                         "x": 90.4524093651707,
                         "y": 27.891491256616277,
@@ -1353,7 +1511,7 @@
     },
     {
         "id": "B4",
-        "name": "B4: 진짜 교주의 방",
+        "name": "B4",
         "description": "건물최하층, 해저 동굴을 개조한 공간.",
         "mapImage": "B4_water01.png",
         "rooms": [
@@ -1365,6 +1523,8 @@
                     {
                         "id": "to_b3",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "b3_hall",
                         "x": 31.310449395636017,
                         "y": 33.2588287885561,
@@ -1377,6 +1537,8 @@
                     {
                         "id": "to_leader",
                         "type": "move",
+                        "locked": true,
+                        "locked_key": "npc_bokeo_003",
                         "target": "real_leader_room",
                         "x": 59.021996561888564,
                         "y": 34.71246979065042,
@@ -1389,6 +1551,8 @@
                     {
                         "id": "to_b5",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "b5_entrance",
                         "x": 38.02840022381845,
                         "y": 90.39785399626663,
@@ -1421,6 +1585,8 @@
                     {
                         "id": "to_entrance",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "b4_entrance",
                         "x": 7.932811606948517,
                         "y": 32.78541747697876,
@@ -1461,6 +1627,8 @@
                     {
                         "id": "to_b5",
                         "type": "move",
+                        "locked": true,
+                        "locked_key": "key026",
                         "target": "B5_hallway",
                         "x": 47.79111635006855,
                         "y": 36.796275717187825,
@@ -1526,6 +1694,8 @@
                     {
                         "id": "to_entrance",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "B5_hallway",
                         "x": 61.05861055045224,
                         "y": 32.06879632994096,
@@ -1630,6 +1800,8 @@
                     {
                         "id": "to_entrance",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "B5_hallway",
                         "x": 0.7197804458766912,
                         "y": 68.40740518065117,
@@ -1662,6 +1834,8 @@
                     {
                         "id": "zone_1",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "freezer",
                         "x": 45.6,
                         "y": 36.8,
@@ -1674,6 +1848,8 @@
                     {
                         "id": "zone_2",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "solphi_room",
                         "x": 78.13992681529224,
                         "y": 36.6,
@@ -1686,6 +1862,8 @@
                     {
                         "id": "zone_3",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "dock",
                         "x": 23.780219554123313,
                         "y": 37.853509164059005,
@@ -1707,8 +1885,10 @@
                     {
                         "id": "zone_1",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "solphi_room",
-                        "x": 39.42032933118497,
+                        "x": 39.420329331184966,
                         "y": 48.420054895118604,
                         "width": 3.7,
                         "height": 7.7,
@@ -1719,6 +1899,8 @@
                     {
                         "id": "zone_2",
                         "type": "move",
+                        "locked": false,
+                        "locked_key": "",
                         "target": "B5_hallway",
                         "x": 43.7,
                         "y": 88.3,
@@ -1747,7 +1929,7 @@
                 "highlightColor": "text-yellow-500",
                 "description": "정체불명의 공간. 비릿한 냄새가 난다.",
                 "background": null,
-                "overlayColor": "bg-black/40",
+                "overlayColor": "bg-black/0",
                 "activeZones": []
             }
         ]
