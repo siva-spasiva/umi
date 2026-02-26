@@ -34,8 +34,14 @@ async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current
 
     result = await chat_service.process_chat_flow(user_id, request.npcId, request.message, request.item_id)
     
-    if result.get("status") == "blocked_by_guardrail":
-        return {"response": result["response"], "blocked": True}
+    if result.get("status") in ["blocked_by_guardrail", "blocked_by_ga1", "blocked_by_troll_limit"]:
+        return {
+            "response": result["response"],
+            "blocked": True,
+            "status": result.get("status"),
+            "troll_count": result.get("troll_count", 0),
+            "force_skip": result.get("force_skip", False)
+        }
         
     result["hp"] = hp_result
     return result
