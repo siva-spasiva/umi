@@ -51,13 +51,16 @@ async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current
     state = result.get("state", {})
     
     result["thought"] = analysis.get("thought", "")
+    friendly_delta = analysis.get("friendly_delta", 0)
+    faith_delta = analysis.get("faith_delta", 0)
+    
     result["updatedStats"] = {
-        "friendly": analysis.get("friendly_delta", 0),
-        "faith": analysis.get("faith_delta", 0)
+        "friendly": friendly_delta,
+        "faith": faith_delta
     }
     result["currentStats"] = {
-        "friendly": state.get("friendly", 0),
-        "faith": state.get("faith", 0),
+        "friendly": state.get("friendly", 50) + friendly_delta,
+        "faith": state.get("faith", 50) + faith_delta,
         "fishLevel": state.get("fish_level", 0)
     }
     
