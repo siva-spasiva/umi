@@ -442,12 +442,16 @@ class NPCDialoguePipeline:
             
         system_prompt += "\n\n" + control_signal.strip()
         
-        # Output Constraints (Korean Enforcement)
+        # Output Constraints (Korean Enforcement & Length)
         system_prompt += "\n\n" + (
-            "[최종 출력 규칙]\n"
-            f"- {self.npc_id}의 대사는 오직 '한국어'로만 출력하십시오.\n"
-            "- 절대로 영어나 중국어를 사용하지 마십시오.\n"
-            "- 마크다운, 선택지, 설명, 지문 등을 포함하지 마십시오.\n"
+            "==========================================================\n"
+            "[절대 지켜야 할 최종 출력 규칙]\n"
+            f"1. 언어: 오직 '한국어'로만 출력할 것 (영어/중국어 절대 금지).\n"
+            f"2. 형식: 마크다운, 선택지, 설명, 지문, 괄호 등 대사가 아닌 것은 모두 제외.\n"
+            f"3. 길이 제한: [SPEECH_STYLE]에 명시된 문장 수를 **어떤 경우에도 엄격하게 지키십시오**.\n"
+            f"   (예: 1~2문장이면 절대 3문장 이상 출력하지 마십시오. 답변을 도중에 끊배서라도 길이를 맞춰야 합니다.)\n"
+            f"4. 부연 설명 생략: 필요 없는 인삿말, 긴 부연 설명 없이 즉시 본론만 짧게 말하십시오.\n"
+            "==========================================================\n"
         )
         
         return system_prompt.strip()
@@ -573,7 +577,7 @@ class NPCDialoguePipeline:
                 content = msg.get("content", "")
                 full_prompt += f"<start_of_turn>{role}\n{content}<end_of_turn>\n"
         
-        full_prompt += f"<start_of_turn>user\n{user_message}<end_of_turn>\n<start_of_turn>model\n"
+        full_prompt += f"<start_of_turn>user\n{user_message}\n\n(※주의: 어떤 질문이든 반드시 네 성격(PERSONALITY)과 말투(SPEECH_STYLE, 특히 문장 수)를 철저하게 유지해서 아주 짧게 대답해!)<end_of_turn>\n<start_of_turn>model\n"
         
         # 7. 생성
         prompt_template = PromptTemplate(input_variables=["user_input"], template=full_prompt)
