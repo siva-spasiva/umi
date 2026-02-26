@@ -6,6 +6,7 @@ from app.services.map_service import map_service
 from app.services.conversation_service import conversation_service
 from app.services.stats_service import stats_service
 from app.services.inventory_service import inventory_service
+from app.services.schedule_service import schedule_service
 from app.core.security import get_current_user_id
 from app.core.database import db
 
@@ -61,6 +62,22 @@ async def get_all_maps(user_id: str = Depends(get_current_user_id)):
     
     return maps
 
+
+@router.get("/schedule/full")
+async def get_full_schedule_timeline(
+    day_start: int = Query(default=0, ge=0, le=5),
+    day_end: int = Query(default=5, ge=0, le=5),
+    user_id: str = Depends(get_current_user_id),
+):
+    """
+    전체 일정 확인용 API
+    - raw schedules
+    - day/session별 계산된 room_placements 결과
+    """
+    _ = user_id  # 인증용으로만 사용
+    data = await schedule_service.get_full_timeline(day_start=day_start, day_end=day_end)
+    return {"status": "success", "data": data}
+
 @router.get("/{floor_id}", response_model=Floor)
 async def get_floor(floor_id: str, user_id: str = Depends(get_current_user_id)):
     """특정 층의 맵 데이터를 반환합니다. 인벤토리 상황에 따라 잠김(locked) 상태가 동적으로 해제됩니다."""
@@ -97,13 +114,10 @@ async def get_room(
     
     response = {"room": room, "npcs": [], "topic": None, "single_npc": None}
     
-    # DB에서 현재 사용자의 진행 상태(일자 및 세션) 조회
-    user_doc = await db["users"].find_one({"user_id": user_id})
-    if not user_doc or "progress" not in user_doc:
-        return response
-
-    day_index = user_doc["progress"].get("current_day", 1)
-    session_index = user_doc["progress"].get("current_session", 1)
+    # 현재 진행 상태는 user_stats를 단일 소스로 사용
+    current_stats = await stats_service.get_current_stats(user_id)
+    day_index = int(current_stats.get("current_day", 0))
+    session_index = int(current_stats.get("current_session_index", 1))
     
     if day_index is not None and session_index is not None:
         session_state = await db["session_map_state"].find_one(
@@ -113,8 +127,10 @@ async def get_room(
         
         if session_state:
             room_placement = None
+            normalized_room_id = room_id.strip().lower()
             for placement in session_state.get("room_placements", []):
-                if placement.get("room_id") == room_id:
+                placement_room_id = str(placement.get("room_id", "")).strip().lower()
+                if placement_room_id == normalized_room_id:
                     room_placement = placement
                     break
             
@@ -167,12 +183,9 @@ async def eavesdrop_room(
     if not room:
         raise HTTPException(status_code=404, detail=f"Room {room_id} in {floor_id} not found")
         
-    user_doc = await db["users"].find_one({"user_id": user_id})
-    if not user_doc or "progress" not in user_doc:
-        raise HTTPException(status_code=400, detail="유저 진행 상태를 찾을 수 없습니다.")
-
-    day_index = user_doc["progress"].get("current_day", 1)
-    session_index = user_doc["progress"].get("current_session", 1)
+    current_stats = await stats_service.get_current_stats(user_id)
+    day_index = int(current_stats.get("current_day", 0))
+    session_index = int(current_stats.get("current_session_index", 1))
     
     session_state = await db["session_map_state"].find_one(
         {"day_index": day_index, "session_index": session_index},
@@ -183,8 +196,10 @@ async def eavesdrop_room(
         raise HTTPException(status_code=404, detail="해당 세션의 맵 정보가 없습니다.")
         
     room_placement = None
+    normalized_room_id = room_id.strip().lower()
     for placement in session_state.get("room_placements", []):
-        if placement.get("room_id") == room_id:
+        placement_room_id = str(placement.get("room_id", "")).strip().lower()
+        if placement_room_id == normalized_room_id:
             room_placement = placement
             break
             
@@ -218,4 +233,3 @@ async def eavesdrop_room(
     except Exception as e:
         print(f"[WARN] Eavesdrop generation failed: {e}")
         raise HTTPException(status_code=500, detail="대화 생성 중 오류가 발생했습니다.")
-

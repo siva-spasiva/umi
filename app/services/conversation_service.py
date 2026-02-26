@@ -242,7 +242,8 @@ class ConversationService:
         topic: str,
         npc_ids: List[str],
         user_message: str,
-        history: Optional[List[Dict[str, Any]]] = None
+        history: Optional[List[Dict[str, Any]]] = None,
+        user_id: Optional[str] = None
     ) -> ConversationResponse:
         """
         User+NPC 대화 (유저 참여 O)

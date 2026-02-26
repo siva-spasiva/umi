@@ -32,6 +32,8 @@ async def startup_init_npcs():
         import json
         import os
         from app.core.database import db
+        await db["session_map_state"].delete_many({})
+        print("✅ [Startup] Cleared 'session_map_state' collection.")
         map_path = os.path.join(os.path.dirname(__file__), "data", "map.json")
         if os.path.exists(map_path):
             with open(map_path, "r", encoding="utf-8") as f:
@@ -42,6 +44,30 @@ async def startup_init_npcs():
                 print(f"✅ [Startup] Successfully seeded {len(map_data)} floors into 'maps' collection.")
         else:
             print(f"⚠️ [Startup] map.json not found at {map_path}")
+
+        schedule_path = os.path.join(os.path.dirname(__file__), "data", "schedule.json")
+        if os.path.exists(schedule_path):
+            with open(schedule_path, "r", encoding="utf-8") as f:
+                schedule_data = json.load(f)
+            await db["schedules"].delete_many({})
+            docs = [{"npc_id": npc_id.lower(), "schedule": info} for npc_id, info in schedule_data.items()]
+            if docs:
+                await db["schedules"].insert_many(docs)
+            print(f"✅ [Startup] Successfully seeded {len(docs)} schedules into 'schedules' collection.")
+        else:
+            print(f"⚠️ [Startup] schedule.json not found at {schedule_path}")
+
+        topics_path = os.path.join(os.path.dirname(__file__), "data", "NPC_topics.json")
+        if os.path.exists(topics_path):
+            with open(topics_path, "r", encoding="utf-8") as f:
+                topics_data = json.load(f)
+            await db["npc_topics"].delete_many({})
+            topic_docs = topics_data.get("npc_dialogue_sessions", [])
+            if topic_docs:
+                await db["npc_topics"].insert_many(topic_docs)
+            print(f"✅ [Startup] Successfully seeded {len(topic_docs)} topic groups into 'npc_topics' collection.")
+        else:
+            print(f"⚠️ [Startup] NPC_topics.json not found at {topics_path}")
             
         story_prompt_path = os.path.join(os.path.dirname(__file__), "data", "story_prompt.json")
         if os.path.exists(story_prompt_path):

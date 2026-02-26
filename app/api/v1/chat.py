@@ -25,13 +25,8 @@ class EndDayRequest(BaseModel):
 async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current_user_id)):
     """
     GA 에이전트가 입력과 출력을 검증하는 채팅 API입니다.
-    HP 10을 소모합니다.
+    HP를 소모하지 않습니다.
     """
-    # HP 소모 (10)
-    hp_result = await stats_service.spend_hp(user_id, 10, "NPC 대화")
-    if not hp_result["success"]:
-        raise HTTPException(status_code=400, detail=hp_result["message"])
-
     result = await chat_service.process_chat_flow(user_id, request.npcId, request.message, request.item_id)
     
     if result.get("status") in ["blocked_by_guardrail", "blocked_by_ga1", "blocked_by_troll_limit"]:
@@ -64,7 +59,18 @@ async def chat_with_npc(request: ChatRequest, user_id: str = Depends(get_current
         "fishLevel": state.get("fish_level", 0)
     }
     
-    result["hp"] = hp_result
+    # /chat은 HP를 차감하지 않으므로 현재 상태만 참고용으로 내려줍니다.
+    current_user_stats = await stats_service.get_current_stats(user_id)
+    result["hp"] = {
+        "success": True,
+        "total_hp": current_user_stats.get("total_hp", 0),
+        "session_hp": current_user_stats.get("session_hp", 0),
+        "plus_hp": current_user_stats.get("plus_hp", 0),
+        "current_session": current_user_stats.get("current_session", "morning"),
+        "current_session_index": current_user_stats.get("current_session_index", 1),
+        "current_day": current_user_stats.get("current_day", 0),
+        "message": "chat 호출은 HP를 소모하지 않습니다."
+    }
     return result
 
 @router.post(
@@ -178,29 +184,60 @@ async def end_session(user_id: str = Depends(get_current_user_id)):
     - day/session 인덱스는 user_stats의 current_day/current_session에서 자동 조회
     """
     current_stats = await stats_service.get_current_stats(user_id)
-    day_index = current_stats.get("current_day", 0)
-    session_index = current_stats.get("current_session_index", 1)
+
+    # 기본은 current_* 필드를 우선 사용하고, 누락 시에만 레거시 필드 fallback
+    day_index = current_stats.get("current_day", current_stats.get("day_index", 0))
+    session_index = current_stats.get("current_session_index", current_stats.get("session_index", 1))
+    try:
+        day_index = int(day_index)
+    except Exception:
+        day_index = 0
+    try:
+        session_index = int(session_index)
+    except Exception:
+        session_index = 1
 
     # Day 0 (튜토리얼): 게임 로직 없이 세션만 전환
     if day_index == 0:
+        from app.services.schedule_service import schedule_service
+        from app.core.database import db
+
         # 요구사항: Day 0 / Session 0(튜토리얼 시작 상태)에서 end-session 호출 시
         # 즉시 튜토리얼 종료 후 Day 1 시작
         if session_index in (0, 1):
             advance_result = await stats_service.complete_tutorial(user_id)
+            next_day = int(advance_result.get("current_day", 1))
+            next_session = int(advance_result.get("current_session_index", 1))
+            next_map_config = await schedule_service.generate_map_config(next_day, next_session)
+            await db["session_map_state"].update_one(
+                {"day_index": next_day, "session_index": next_session},
+                {"$set": next_map_config},
+                upsert=True
+            )
             return {
                 "status": "tutorial_completed",
                 "message": "튜토리얼이 종료되고 Day 1이 시작되었습니다.",
                 "day_index": day_index,
                 "session_index": session_index,
+                "next_session_map": next_map_config,
                 "advance": advance_result,
             }
 
         advance_result = await stats_service.advance_session(user_id)
+        next_day = int(advance_result.get("current_day", day_index))
+        next_session = int(advance_result.get("current_session_index", max(1, session_index)))
+        next_map_config = await schedule_service.generate_map_config(next_day, next_session)
+        await db["session_map_state"].update_one(
+            {"day_index": next_day, "session_index": next_session},
+            {"$set": next_map_config},
+            upsert=True
+        )
         return {
             "status": "tutorial",
             "message": "튜토리얼 세션입니다. 게임 데이터는 저장되지 않습니다.",
             "day_index": day_index,
             "session_index": session_index,
+            "next_session_map": next_map_config,
             "advance": advance_result,
         }
 
