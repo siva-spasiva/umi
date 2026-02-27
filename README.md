@@ -1,3 +1,9 @@
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/5c926fd0-7b11-4dd5-a2cd-6f490188f0bf" alt="spasiva-logo" width="800" />
+</div>
+
+<br />
+
 # Umi Backend API
 
 Umi는 게임 캐릭터와의 대화, 스탯 관리, 스토리 진행을 추적하는 FastAPI 기반 백엔드 서버입니다. MongoDB를 사용하여 대화 로그, 게임 스탯, 스토리 요약 등을 저장하고 관리합니다.
