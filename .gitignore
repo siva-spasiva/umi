@@ -46,3 +46,5 @@ app/data/init_data.py
 /logs
 /test/logs/*
 /test/test_full_game_flow_result.json
+
+*.zip
