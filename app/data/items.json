@@ -1,0 +1,257 @@
+{
+    "item001": {
+        "id": "item001",
+        "name": "스마트폰",
+        "description": "조금 무겁지만 믿음직하다.",
+        "flavorText": "16개월 할부로 산 거야. 미래의 나 힘내자...",
+        "type": "normal"
+    },
+    "item002": {
+        "id": "item002",
+        "name": "신분증",
+        "description": "나의 이름과 사진이 찍혀 있다. 최근에 재발급 받았다.",
+        "flavorText": "증명사진 이쁘게 찍을걸. 조금 부끄럽다.",
+        "type": "key_item"
+    },
+    "item003": {
+        "id": "item003",
+        "name": "경찰 배지",
+        "description": "자랑스러운 내 경찰 뱃지. 누군가에게 보여줄 수도 있을 것 같다.",
+        "flavorText": "",
+        "type": "key_item"
+    },
+    "item004": {
+        "id": "item004",
+        "name": "수상한 계약서",
+        "description": "원데이 클래스 우미의 계약서. 약간 비린내가 난다.",
+        "flavorText": "",
+        "type": "key_item",
+        "isContract": true
+    },
+    "item005": {
+        "id": "item005",
+        "name": "솔피의 눈물",
+        "description": "달달하면서 짭짤한, 묘한 느낌의 비린내가 나는 음료. 우미 클래스의 웰컴 드링크다.",
+        "flavorText": "주의사항: 뻐끔 뻐끔! 너무 맛있으니 중독되지 않도록 하세요!",
+        "type": "normal",
+        "consumable": true,
+        "effect": {
+            "fishLevel": 10
+        }
+    },
+    "item006": {
+        "id": "item006",
+        "name": "솔피의 눈물",
+        "description": "달달하면서도 짭짤한, 기분좋은 비린내가 나는 음료. 푸른 병에 담겨서 신도들에게 지급되는 듯 하다.",
+        "flavorText": "모두 [뻐끔뻐끔]에게 [뻐끔] 하세요! - 전광어 목사",
+        "type": "normal",
+        "consumable": true,
+        "effect": {
+            "fishLevel": 10
+        }
+    },
+    "item007": {
+        "id": "item007",
+        "name": "솔피의 눈물",
+        "description": "차갑고 달콤한, 기분좋은 푸른 음료. 갈증 해소에 최고인 것 같다.",
+        "flavorText": "매일 매일 솔피의 눈물을 주다니, 최고잖아? - 청갈치",
+        "type": "normal",
+        "consumable": true,
+        "effect": {
+            "fishLevel": 10
+        }
+    },
+    "item008": {
+        "id": "item008",
+        "name": "솔피의 눈물",
+        "description": "정체불명의 푸른 액체. 마시기 힘들 정도로 짠맛과 비린내가 난다...",
+        "flavorText": "이젠 더이상 [뻐끔]이 들리지 않는다... - 박복어",
+        "type": "normal",
+        "consumable": true,
+        "effect": {
+            "fishLevel": 10
+        }
+    },
+    "item009": {
+        "id": "item009",
+        "name": "솔피의 눈물",
+        "description": "우미교의 신 <솔피>의 체액. 마실수록 물고기화되어 간다. 이것을 마시고 물고기가 되어간 사람은 도대체 몇 명일까?",
+        "flavorText": "물고기가 되어도 좋아. 솔피님과 함께한다면...",
+        "type": "key_item",
+        "consumable": true,
+        "effect": {
+            "fishLevel": 10
+        }
+    },
+    "item010": {
+        "id": "item010",
+        "name": "검은 열쇠",
+        "description": "무언가를 열 수 있을 것 같은 검은 열쇠.",
+        "flavorText": "",
+        "type": "key_item"
+    },
+    "item011": {
+        "id": "item011",
+        "name": "흰색 열쇠",
+        "description": "무언가를 열 수 있을 것 같은 흰색 열쇠.",
+        "flavorText": "",
+        "type": "key_item"
+    },
+    "item020": {
+        "id": "item020",
+        "name": "우미교 계약서",
+        "description": "우미교의 계약서. 약간 비린내가 난다.",
+        "flavorText": "이제 내용이 전부 보여...",
+        "type": "key_item",
+        "isContract": true
+    },
+    "item021": {
+        "id": "item021",
+        "name": "허름한 티셔츠",
+        "description": "허름한 티셔츠. 덜 말랐다.",
+        "flavorText": "제발 세탁하고나서 빨리 가져가. 안그러면 내가 가져간다. - 곽빙어",
+        "type": "normal",
+        "icon": "👕"
+    },
+    "item022": {
+        "id": "item022",
+        "name": "술병",
+        "description": "술병. 뚜껑이 열린 채 오래 지나서 말라있다.",
+        "flavorText": "",
+        "type": "normal",
+        "icon": "🍷"
+    },
+    "item023": {
+        "id": "item023",
+        "name": "썰린 고기",
+        "description": "썰린 고기. 조리실에서 몰래 챙겼다.",
+        "flavorText": "그닥 신선해보이지는 않는다.",
+        "type": "normal",
+        "icon": "🥩"
+    },
+    "item024": {
+        "id": "item024",
+        "name": "촛농",
+        "description": "촛농. 중앙 식당의 식탁 위에 놓여 있었다.",
+        "flavorText": "왜 우미교는 전기를 안쓰고 촛불을 고집하는걸까?",
+        "type": "normal",
+        "icon": "🪔"
+    },
+    "item025": {
+        "id": "item025",
+        "name": "꽃병",
+        "description": "투명한 유리병에 꽃이 꽂혀있다.",
+        "flavorText": "",
+        "type": "normal",
+        "icon": "💐"
+    },
+    "item026": {
+        "id": "item026",
+        "name": "낡은 열쇠",
+        "description": "낡은 열쇠. 무언가 철문에 사용할 수 있을것 같다.",
+        "flavorText": "냉기가 느껴진다.",
+        "type": "key_item",
+        "icon": "🗝️"
+    },
+    "npc_bokeo_001": {
+        "id": "npc_bokeo_001",
+        "name": "피 묻은 쪽지",
+        "description": "구겨진 쪽지에 알 수 없는 글씨가 적혀 있다. 한쪽 모서리에 검붉은 얼룩.",
+        "flavorText": "\"지하 4층 냉동고. 새벽 1시. 혼자 가지 마.\" — 필체가 떨리고 있다.",
+        "type": "key_item",
+        "npcOrigin": "bokeo"
+    },
+    "npc_bokeo_002": {
+        "id": "npc_bokeo_002",
+        "name": "녹슨 면도칼",
+        "description": "날이 무뎌진 접이식 면도칼. 손잡이에 새겨진 이니셜이 닳아 있다.",
+        "flavorText": "이것으로 무엇을 했는지는... 묻지 않는 게 좋겠다.",
+        "type": "normal",
+        "npcOrigin": "bokeo"
+    },
+    "npc_bokeo_003": {
+        "id": "npc_bokeo_003",
+        "name": "교주의 방 열쇠",
+        "description": "박복어가 받은 교주방의 열쇠.",
+        "flavorText": "\"너를 믿는다. 이 열쇠는 너만 사용할 수 있어.\" — 박복어",
+        "type": "key_item",
+        "icon": "🗝️",
+        "npcOrigin": "bokeo"
+    },
+    "npc_galchi_001": {
+        "id": "npc_galchi_001",
+        "name": "신분증 (본인 거 아님)",
+        "description": "청갈치가 갖고 다니는 신분증. 사진은 비슷하지만 이름이 다르다. 도용된 것으로 보인다.",
+        "flavorText": "\"이름이 뭐가 중요해. 중요한 건 믿게 만드는 거지.\"",
+        "type": "key_item",
+        "npcOrigin": "galchi"
+    },
+    "npc_galchi_002": {
+        "id": "npc_galchi_002",
+        "name": "개인 수첩",
+        "description": "사람 이름 대신 별명만 적혀 있다. \"빨간코 아줌마 – 3200\", \"택시기사 – 1500\". 금액으로 보이는 숫자와 날짜, 그리고 피해자들의 주민등록번호 메모가 빼곡하다.",
+        "flavorText": "피해자 기록장. 이 수첩에 적힌 사람들은 지금 어디에 있을까.",
+        "type": "key_item",
+        "npcOrigin": "galchi"
+    },
+    "npc_galchi_003": {
+        "id": "npc_galchi_003",
+        "name": "찢어진 명함 뭉치와 신분증",
+        "description": "서로 다른 이름, 서로 다른 직함의 명함들. \"한성민 – 투자 컨설턴트\", \"김도윤 – 해외 무역 담당\", \"박진우 – 재무설계사\". 동일 인물이 여러 신분을 사용했다는 단서.",
+        "flavorText": "한 사람이 이 많은 얼굴을 갖고 있었다니.",
+        "type": "key_item",
+        "npcOrigin": "galchi",
+        "roomItem": true
+    },
+    "npc_galchi_004": {
+        "id": "npc_galchi_004",
+        "name": "여러 개의 휴대폰",
+        "description": "서로 다른 유심이 꽂힌 공기계 4대. 각각 다른 카카오톡 계정과 다른 사진들이 저장되어 있다. 연애 사기와 신분 위장의 흔적.",
+        "flavorText": "4개의 폰, 4개의 인생. 진짜는 어디에도 없다.",
+        "type": "key_item",
+        "npcOrigin": "galchi",
+        "roomItem": true
+    },
+    "npc_galchi_005": {
+        "id": "npc_galchi_005",
+        "name": "선불폰 영수증 뭉치",
+        "description": "주기적으로 개통과 해지를 반복한 선불폰 영수증들. 추적을 회피하려는 목적이 분명하다.",
+        "flavorText": "한 번 쓰고 버리는 번호. 한 번 쓰고 버리는 관계.",
+        "type": "normal",
+        "npcOrigin": "galchi",
+        "roomItem": true
+    },
+    "npc_galchi_006": {
+        "id": "npc_galchi_006",
+        "name": "헌금 관리 장부 사본",
+        "description": "종교 시설 내부의 돈 흐름을 따로 정리한 장부. 과거 투자사기 장부와 동일한 포맷이다. 범죄 기술을 그대로 교단에 전이한 증거.",
+        "flavorText": "\"이거 갖고 있다가 걸리면 나도 너도 끝이야.\"",
+        "type": "key_item",
+        "npcOrigin": "galchi",
+        "roomItem": true
+    },
+    "npc_bingeo_001": {
+        "id": "npc_bingeo_001",
+        "name": "곽빙어의 수첩",
+        "description": "해진 겉표지의 낡은 수첩. 실종자 이름, 날짜, 마지막 목격 장소, 의심 인물, 금기 구역 지도 스케치가 빼곡히 적혀 있다.",
+        "flavorText": "\"이건... 제가 모아둔 전부예요. 부탁이에요, 잘 써주세요.\"",
+        "type": "key_item",
+        "npcOrigin": "bingeo"
+    },
+    "npc_bingeo_002": {
+        "id": "npc_bingeo_002",
+        "name": "오래된 USB 메모리",
+        "description": "긁히고 라벨이 벗겨진 USB. 녹음 파일, 사진, 문서 스캔본이 들어 있다.",
+        "flavorText": "\"이 안에 뭐가 있는지는... 직접 확인해보세요.\"",
+        "type": "key_item",
+        "npcOrigin": "bingeo"
+    },
+    "npc_bingeo_003": {
+        "id": "npc_bingeo_003",
+        "name": "빛바랜 사진",
+        "description": "어린 아이와 한 여성이 희미하게 웃고 있는 오래된 사진. 뒷면에 날짜가 적혀 있다.",
+        "flavorText": "\"...돌려주실 거죠?\"",
+        "type": "normal",
+        "npcOrigin": "bingeo"
+    }
+}

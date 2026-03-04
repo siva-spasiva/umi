@@ -4,3 +4,23 @@ motor
 pymongo
 pydantic-settings
 python-dotenv
+# torch==2.1.2와 호환되는 범위로 고정 (너무 최신 버전은 torch>=2.4 요구)
+transformers==4.46.3
+accelerate>=0.27.2
+torch==2.1.2
+psutil
+pynvml
+bitsandbytes>=0.42.0
+pytest
+httpx
+pyjwt  # JWT 인증용
+peft>=0.8.2
+sentencepiece
+tiktoken
+langsmith
+langchain==0.2.14
+langchain-core==0.2.33
+langchain-community==0.2.12
+langchain-huggingface==0.0.3
+langchain_chroma==0.1.2
+sentence-transformers>=2.5.1

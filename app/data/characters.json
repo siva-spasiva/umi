@@ -1,32 +1,175 @@
 {
-  "believer_a": {
-    "friendly": 20,
-    "faith": 30,
-    "trust": 0
+  "npc_a": {
+    "id": "npc_a",
+    "name": "김태영",
+    "role": "investigator",
+    "initialStats": {
+      "friendly": 15,
+      "faith": 20,
+      "fishLevel": 1
+    },
+    "initialInventory": [],
+    "initialPortrait": "npc_A_00.png",
+    "portraits": {
+      "default": "npc_A_00.png",
+      "smile": "npc_A_01.png",
+      "angry": "npc_A_02.png",
+      "surprised": "npc_A_03.png"
+    }
   },
-  "believer_b": {
-    "friendly": 20,
-    "faith": 50,
-    "trust": 0
+  "detective_kang": {
+    "id": "detective_kang",
+    "name": "강 형사",
+    "role": "detective",
+    "initialStats": {
+      "friendly": 50,
+      "faith": 0,
+      "fishLevel": 0
+    },
+    "initialInventory": [],
+    "initialPortrait": "detective_kang_00.png",
+    "portraits": {
+      "default": "detective_kang_00.png"
+    }
   },
-  "believer_c": {
-    "friendly": 20,
-    "faith": 80,
-    "trust": 0
+  "bokeo": {
+    "id": "bokeo",
+    "name": "박복어",
+    "role": "believer",
+    "initialStats": {
+      "friendly": 10,
+      "faith": 80,
+      "fishLevel": 4
+    },
+    "initialInventory": [
+      "npc_bokeo_001",
+      "npc_bokeo_002",
+      "npc_bokeo_003"
+    ],
+    "initialPortrait": "npc_bokeo_00.png",
+    "portraits": {
+      "default": "npc_bokeo_00.png",
+      "glare": "npc_bokeo_01.png",
+      "smirk": "npc_bokeo_02.png",
+      "confess": "npc_bokeo_03.png"
+    }
   },
-  "friend": {
-    "friendly": 80,
-    "faith": 0,
-    "trust": 0
+  "galchi": {
+    "id": "galchi",
+    "name": "청갈치",
+    "role": "believer",
+    "initialStats": {
+      "friendly": 10,
+      "faith": 10,
+      "fishLevel": 3
+    },
+    "initialInventory": [
+      "npc_galchi_001",
+      "npc_galchi_002"
+    ],
+    "initialPortrait": "npc_galchi_00.png",
+    "portraits": {
+      "default": "npc_galchi_00.png",
+      "smirk": "npc_galchi_01.png",
+      "serious": "npc_galchi_02.png"
+    }
   },
-  "reporter": {
-    "friendly": 30,
-    "faith": 0,
-    "trust": 0
+  "bingeo": {
+    "id": "bingeo",
+    "name": "곽빙어",
+    "role": "believer",
+    "initialStats": {
+      "friendly": 15,
+      "faith": 20,
+      "fishLevel": 2
+    },
+    "initialInventory": [
+      "npc_bingeo_001",
+      "npc_bingeo_002",
+      "npc_bingeo_003"
+    ],
+    "initialPortrait": "npc_bingeo_00.png",
+    "portraits": {
+      "default": "npc_bingeo_00.png",
+      "nervous": "npc_bingeo_01.png",
+      "earnest": "npc_bingeo_02.png"
+    }
   },
-  "leader": {
-    "friendly": 10,
-    "faith": 90,
-    "trust": 0
+  "mineo": {
+    "id": "mineo",
+    "name": "이민어",
+    "role": "reporter",
+    "initialStats": {
+      "friendly": 10,
+      "faith": 50,
+      "fishLevel": 0
+    },
+    "initialInventory": [],
+    "initialPortrait": "npc_mineeo_00.png",
+    "portraits": {
+      "default": "npc_mineeo_00.png",
+      "alt": "npc_mineeo_01.png"
+    }
+  },
+  "gwangeo": {
+    "id": "gwangeo",
+    "name": "전광어",
+    "role": "leader",
+    "initialStats": {
+      "friendly": 0,
+      "faith": 100,
+      "fishLevel": 5
+    },
+    "initialInventory": [],
+    "initialPortrait": "npc_gwangeo_00.png",
+    "portraits": {
+      "default": "npc_gwangeo_00.png",
+      "alt": "npc_gwangeo_01.png"
+    }
+  },
+  "godeungeo": {
+    "id": "godeungeo",
+    "name": "고등어",
+    "isHardcoded": true,
+    "dialogues": [
+      "1",
+      "2",
+      "3"
+    ],
+    "initialPortrait": "npc_godeungeo_00.png",
+    "portraits": {
+      "default": "npc_godeungeo_00.png",
+      "alt": "npc_godeungeo_01.png"
+    }
+  },
+  "gubokchi": {
+    "id": "gubokchi",
+    "name": "구복치",
+    "isHardcoded": true,
+    "dialogues": [
+      "1",
+      "2",
+      "3"
+    ],
+    "initialPortrait": "npc_gubokchi_00.png",
+    "portraits": {
+      "default": "npc_gubokchi_00.png",
+      "alt": "npc_gubokchi_01.png"
+    }
+  },
+  "songsari": {
+    "id": "songsari",
+    "name": "송사리",
+    "isHardcoded": true,
+    "dialogues": [
+      "1",
+      "2",
+      "3"
+    ],
+    "initialPortrait": "npc_songsari_00.png",
+    "portraits": {
+      "default": "npc_songsari_00.png",
+      "alt": "npc_songsari_01.png"
+    }
   }
 }

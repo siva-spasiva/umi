@@ -43,8 +43,10 @@ class SafetyCheck(BaseModel):
     spoiler_blocked: bool
 
 class StorySummary(BaseModel):
+    user_id: str = Field(..., description="유저 고유 ID")
     day_index: int
     diary: Diary
+
     summary_bullets: List[str]
     key_conversations: List[KeyConversation]
     items: List[ItemUsage]
@@ -54,4 +56,14 @@ class StorySummary(BaseModel):
     ending: GameEnding
     flags_for_next_day: List[NextDayFlag]
     safety: SafetyCheck
+    time: datetime = Field(default_factory=datetime.now)
+
+class EpilogueResponse(BaseModel):
+    """최종 엔딩(에필로그) 데이터 스키마"""
+    user_id: str = Field(..., description="유저 고유 ID")
+    title: str = Field(..., description="엔딩 제목")
+
+    text: str = Field(..., description="엔딩 본문")
+    ending_type: str = Field(..., description="엔딩 종류 (escape, failure 등)")
+    reason: str = Field(..., description="해당 엔딩에 도달한 이유")
     time: datetime = Field(default_factory=datetime.now)

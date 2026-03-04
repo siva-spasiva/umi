@@ -1,5 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from app.schemas.stats import StatsResponse, StatsUpdate, FirstStatsResponse, SuccessResponse, NPCStatsUpdate, NPCStat
+from app.schemas.stats import (
+    StatsResponse, StatsUpdate, FirstStatsResponse, SuccessResponse,
+    NPCStatsUpdate, NPCStat,
+    SpendHpRequest, SpendHpResponse
+)
 from app.schemas.auth import TokenResponse, RefreshTokenRequest
 from app.services.stats_service import stats_service
 from app.core.security import get_current_user_id
@@ -8,7 +12,7 @@ router = APIRouter()
 
 @router.get("/stats", response_model=StatsResponse,
             summary="현재 유저 스탯 조회",
-            description="현재 로그인한 유저의 HP, 물고기 레벨, 신뢰도 등 전반적인 스탯 정보를 가져옵니다."
+            description="현재 로그인한 유저의 HP, 물고기 레벨 등 전반적인 스탯 정보를 가져옵니다."
             )
 async def get_stats(user_id: str = Depends(get_current_user_id)):
     return await stats_service.get_current_stats(user_id)
@@ -27,21 +31,26 @@ async def update_stats(data: StatsUpdate, user_id: str = Depends(get_current_use
 async def update_NPC_stats(data: NPCStatsUpdate, user_id: str = Depends(get_current_user_id)):
     return await stats_service.update_NPC_stats(data.updates, data.npcId, user_id)
 
+@router.get("/stats/NPC/{npc_id}", response_model=NPCStat,
+            summary="특정 NPC의 현재 스탯 조회",
+            description="특정 NPC의 호감도(friendly), 신뢰도(faith), 물고기 레벨(fishLevel)을 조회합니다."
+            )
+async def get_npc_stats(npc_id: str, user_id: str = Depends(get_current_user_id)):
+    stats = await stats_service.get_current_NPC_stats(user_id, npc_id)
+    if not stats:
+        raise HTTPException(status_code=404, detail="해당 NPC의 스탯을 찾을 수 없습니다.")
+    return stats
+
 @router.get("/stats/static", response_model=FirstStatsResponse,
             summary="초기 게임 세션 생성",
-            description="새로운 유저 ID를 생성하고, 기본 스탯 및 NPC 스탯, 초기 인벤토리(001-003 보유)를 설정한 뒤 인증 토큰을 발급합니다."
+            description="인증된 유저 ID로 초기 스탯 및 NPC 스탯, 초기 인벤토리를 설정합니다."
             )
-async def static_stats():
-    return await stats_service.static_stats()
+async def static_stats(user_id: str = Depends(get_current_user_id)):
+    return await stats_service.static_stats(user_id)
 
-@router.post("/refresh", response_model=TokenResponse,
-             summary="토큰 재발급",
-             description="만료된 Access Token을 대신하여 유효한 Refresh Token으로 새로운 Access Token을 발급받습니다.",
-             responses={
-                 401: {"description": "유효하지 않거나 만료된 리프레시 토큰"}
-             })
-async def refresh_token(data: RefreshTokenRequest):
-    res = await stats_service.refresh_session_token(data.refresh_token)
-    if not res:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="유효하지 않은 리프레시 토큰입니다.")
-    return res
+@router.post("/stats/hp/spend", response_model=SpendHpResponse,
+             summary="HP 소모",
+             description="HP를 소모합니다. plus_hp 우선 차감 후 session_hp에서 차감. 둘 다 부족하면 실패합니다."
+             )
+async def spend_hp(data: SpendHpRequest, user_id: str = Depends(get_current_user_id)):
+    return await stats_service.spend_hp(user_id, data.hp, data.message, data.floor_id, data.room_id)

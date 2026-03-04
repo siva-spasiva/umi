@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  # 1. API Server (FastAPI)
+  api-server:
+    build: .
+    container_name: umi-api
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs # To persist logs on host
+      - ./chroma_db:/app/chroma_db # To persist Vector DB on host
+      - ./.env:/app/.env # Environment variables
+    environment:
+      - GPU_SERVER_URL=http://gpu-server:8001 # Internal Docker network address
+      - MONGODB_URL=mongodb://mongo:27017 # Override .env to use docker service name
+    depends_on:
+      - gpu-server
+      - mongo
+    restart: always
+
+  # 4. Nginx Reverse Proxy
+  nginx:
+    image: nginx:latest
+    container_name: umi-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - api-server
+    restart: always
+
+  # 3. MongoDB
+  mongo:
+    image: mongo:latest
+    container_name: umi-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./auth_db:/data/db
+    restart: always
+
+  # 2. GPU Inference Server
+  gpu-server:
+    build: .
+    container_name: umi-gpu
+    command: python gpu_server.py
+    ports:
+      - "8001:8001"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
+    volumes:
+      - ./logs:/app/logs
+      - ./app/agents/NPC_model_v2:/app/app/agents/NPC_model_v2 # Mount model weights
+      - ./.env:/app/.env
+    environment:
+      - GPU_SIZE=LARGE
+    restart: always

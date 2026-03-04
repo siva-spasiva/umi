@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker info --format \"{{.ServerVersion}}\")",
+      "Bash(bash scripts/bootstrap.sh)",
+      "Bash(wmic logicaldisk get size,freespace,caption)",
+      "Bash(powershell -Command \"Get-PSDrive -PSProvider FileSystem | Select-Object Name,Used,Free\")",
+      "Bash(docker builder prune -f)",
+      "Bash(docker system df)"
+    ]
+  }
+}
