@@ -9,6 +9,8 @@ import re
 import os
 import json
 from app.agents.llm_engine import llm_engine
+from app.core.masking_utils import word_masker
+from app.core.database import db
 from app.schemas.conversation import (
     ConversationTurn,
     ConversationResponse,
@@ -341,6 +343,19 @@ class ConversationService:
         )
         turns.append(user_turn)
 
+        user_fish_level = 0
+        if user_id:
+            stats_doc = await db["user_stats"].find_one({"user_id": user_id}, {"_id": 0, "fishLevel": 1})
+            if stats_doc and isinstance(stats_doc.get("fishLevel"), int):
+                user_fish_level = stats_doc["fishLevel"]
+            else:
+                state_doc = await db["user_states"].find_one(
+                    {"user_id": user_id},
+                    {"_id": 0, "fish_level": 1, "fishLevel": 1}
+                )
+                if state_doc:
+                    user_fish_level = state_doc.get("fish_level") or state_doc.get("fishLevel") or 0
+
         npc_updated_stats: Dict[str, Dict[str, int]] = {}
         
         # 각 NPC가 순서대로 응답
@@ -355,17 +370,31 @@ class ConversationService:
             analysis = result.get("analysis", {})
             state = result.get("state", {})
             
-            # 개별 스탯 변화량 수집
-            npc_updated_stats[npc_id] = {
-                "friendly": analysis.get("friendly_delta", 0),
-                "faith": analysis.get("faith_delta", 0)
-            }
-            
             # 타입 에러 방지 (state가 리스트로 오는 경우 처리)
             if isinstance(state, list):
                 state = state[0] if len(state) > 0 else {}
             elif not isinstance(state, dict):
                 state = {}
+                
+            # [Word Masking] 뻐끔치환/금기어 로직 추가
+            npc_fish_level = state.get("fish_level", 0)
+            level_diff = npc_fish_level - user_fish_level
+            
+            if level_diff >= 2 or npc_fish_level >= 3:
+                npc_response = word_masker.mask_text(npc_response)
+                
+            if level_diff >= 3:
+                npc_response = word_masker.mask_randomly(npc_response, ratio=0.8)
+            elif level_diff == 2:
+                npc_response = word_masker.mask_randomly(npc_response, ratio=0.6)
+            elif level_diff == 1:
+                npc_response = word_masker.mask_randomly(npc_response, ratio=0.2)
+
+            # 개별 스탯 변화량 수집
+            npc_updated_stats[npc_id] = {
+                "friendly": analysis.get("friendly_delta", 0),
+                "faith": analysis.get("faith_delta", 0)
+            }
             
             if state:
                 collected_states[npc_id] = state
